@@ -617,7 +617,15 @@ function renderWorkerForm(onDone,onBack){
     const pg=el("div",{style:{marginTop:"12px",padding:"10px 12px",background:"var(--gp)",borderRadius:"10px",fontSize:"12px",color:"var(--mut)"}});
     pg.textContent=`${state.checked.size} / ${ALL_ITEMS.length} биелүүлсэн (шаардлага: ≥${PASS_PCT}%)`;
     card.appendChild(pg);div.appendChild(card);
-    div.appendChild(el("button",{className:"btn btn-p",style:{marginTop:"4px"},onclick:()=>{step=3;render();}},["Гарын үсэг зурах →"]));
+    const nb3=el("button",{className:"btn btn-p",style:{marginTop:"4px"}},["Гарын үсэг зурах →"]);
+    nb3.onclick=()=>{
+      const minRequired=Math.ceil(ALL_ITEMS.length*PASS_PCT/100);
+      if(state.checked.size<minRequired){
+        return toast(`Шалгалт дутуу байна! Дор хаяж ${minRequired} зүйл (${PASS_PCT}%) биелүүлнэ үү. Одоо: ${state.checked.size}/${ALL_ITEMS.length}`,"err");
+      }
+      step=3;render();
+    };
+    div.appendChild(nb3);
     return div;
   }
   function buildSig(){
