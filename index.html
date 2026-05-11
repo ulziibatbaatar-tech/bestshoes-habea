@@ -112,10 +112,9 @@ body{font-family:'DM Sans',sans-serif;background:var(--gp);color:var(--ink);min-
 // ════════════════════════════════════════════════════════════
 // CONFIG — Apps Script deploy хийсний дараа SCRIPT_URL шинэчилнэ
 // ════════════════════════════════════════════════════════════
-const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbza2T2Zx7Fh7fis10sGoPvXmDQfouGn7wscFx0u8GBFSFguyxAP0LALs8HFz2tAPfjl/exec";
-const SHEET_URL  = "https://docs.google.com/spreadsheets/d/1OB8ejIU4RxtuyelQpQVT5PSL6aWWt2gJbx9lo8dhTaU/edit";
+const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbza2T2Zx7Fh7fis10sGoPvXmDQfouGn7wscFx0u8GBFSFguyxAP0LALs8HFz2tAPfjl/exec 
+const SHEET_URL  = "https://docs.google.com/spreadsheets/d/1OB8ejIU4RxtuyelQpQVT5PSL6aWWt2gJbx9lo8dhTaU/edit"; 
 const APP_URL = "https://ulziibatbaatar-tech.github.io/bestshoes-habea/";
-const ALERT_HOUR = 9, ALERT_MIN = 15;
 const DEFAULT_PIN = "9761";
 const DEFAULT_PASS_PCT = 80;
  
@@ -512,7 +511,7 @@ function renderWorkerForm(onDone,onBack){
     nw.appendChild(h("div",{className:"inp-label"},["Ажилтны нэр *"]));
     const ni=el("input",{className:"inp",type:"text",placeholder:"Бүтэн нэрээ бичнэ үү",value:state.name});
     const sg=el("div",{className:"sugg-box",style:{display:"none"}});
-    let _dept,_pos,_phone;
+    let _pos,_phone;
     ni.oninput=()=>{
       state.name=ni.value;
       const q=ni.value.toLowerCase();sg.innerHTML="";
@@ -520,22 +519,44 @@ function renderWorkerForm(onDone,onBack){
         const m=workers.filter(w=>w.name.toLowerCase().includes(q)).slice(0,6);
         if(m.length){sg.style.display="block";m.forEach(w=>{
           const it=el("div",{className:"sugg-item"},[w.name+(w.department?" — "+w.department:"")]);
-          it.onclick=()=>{state.name=w.name;state.department=w.department||"";state.position=w.position||"";state.phone=w.phone||"";ni.value=w.name;if(_dept)_dept.value=w.department||"";if(_pos)_pos.value=w.position||"";if(_phone)_phone.value=w.phone||"";sg.style.display="none";};
+          it.onclick=()=>{
+            state.name=w.name;state.department=w.department||"";state.position=w.position||"";state.phone=w.phone||"";
+            ni.value=w.name;
+            if(_pos)_pos.value=w.position||"";if(_phone)_phone.value=w.phone||"";
+            // Тасгийн товчийг идэвхжүүлэх
+            if(w.department){
+              deptGrid.querySelectorAll("button").forEach(b=>{b.style.background="var(--wh)";b.style.color="var(--ink)";b.style.borderColor="var(--bdr)";});
+              deptGrid.querySelectorAll("button").forEach(b=>{if(b.textContent===w.department){b.style.background="var(--g)";b.style.color="#fff";b.style.borderColor="var(--g)";}});
+            }
+            sg.style.display="none";
+          };
           sg.appendChild(it);
         });}else sg.style.display="none";
       }else sg.style.display="none";
     };
     nw.appendChild(ni);nw.appendChild(sg);div.appendChild(nw);
-    const g1=el("div",{className:"inp-grid"});
-    const dw=el("div",{className:"inp-wrap",style:{margin:0}});
+    // Тасгийн dropdown товчнууд
+    const DEPTS=["Гүйцэтгэл","Оёдол","Гоёл","Санхүү","Эсгүүр","Захиргаа"];
+    const dw=el("div",{className:"inp-wrap"});
     dw.appendChild(h("div",{className:"inp-label"},["Тасаг / Хэлтэс *"]));
-    const di=el("input",{className:"inp",type:"text",placeholder:"Тасгийн нэр",value:state.department});
-    di.oninput=()=>{state.department=di.value;};_dept=di;dw.appendChild(di);
+    const deptGrid=el("div",{style:{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:"6px",marginBottom:"4px"}});
+    DEPTS.forEach(dept=>{
+      const db=el("button",{style:{padding:"10px 6px",border:"1.5px solid var(--bdr)",borderRadius:"10px",fontSize:"13px",fontWeight:"600",fontFamily:"'DM Sans',sans-serif",cursor:"pointer",transition:"all .15s",background:"var(--wh)",color:"var(--ink)",textAlign:"center"}},[dept]);
+      if(state.department===dept){db.style.background="var(--g)";db.style.color="#fff";db.style.borderColor="var(--g)";}
+      db.onclick=()=>{
+        state.department=dept;
+        deptGrid.querySelectorAll("button").forEach(b=>{b.style.background="var(--wh)";b.style.color="var(--ink)";b.style.borderColor="var(--bdr)";});
+        db.style.background="var(--g)";db.style.color="#fff";db.style.borderColor="var(--g)";
+      };
+      deptGrid.appendChild(db);
+    });
+    dw.appendChild(deptGrid);div.appendChild(dw);
+    const g1=el("div",{className:"inp-grid"});
     const pw=el("div",{className:"inp-wrap",style:{margin:0}});
     pw.appendChild(h("div",{className:"inp-label"},["Албан тушаал *"]));
     const pi=el("input",{className:"inp",type:"text",placeholder:"Жишээ: Оператор",value:state.position});
     pi.oninput=()=>{state.position=pi.value;};_pos=pi;pw.appendChild(pi);
-    g1.appendChild(dw);g1.appendChild(pw);div.appendChild(g1);
+    g1.appendChild(pw);div.appendChild(g1);
     const phw=el("div",{className:"inp-wrap",style:{marginTop:"8px"}});
     phw.appendChild(h("div",{className:"inp-label"},["Утасны дугаар"]));
     const phi=el("input",{className:"inp",type:"tel",placeholder:"99XXXXXX",value:state.phone});
