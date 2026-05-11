@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="mn">
 <head>
@@ -112,20 +113,21 @@ body{font-family:'DM Sans',sans-serif;background:var(--gp);color:var(--ink);min-
 // ════════════════════════════════════════════════════════════
 // CONFIG — Apps Script deploy хийсний дараа SCRIPT_URL шинэчилнэ
 // ════════════════════════════════════════════════════════════
-const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbza2T2Zx7Fh7fis10sGoPvXmDQfouGn7wscFx0u8GBFSFguyxAP0LALs8HFz2tAPfjl/exec 
-const SHEET_URL  = "https://docs.google.com/spreadsheets/d/1OB8ejIU4RxtuyelQpQVT5PSL6aWWt2gJbx9lo8dhTaU/edit"; 
+const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbza2T2Zx7Fh7fis10sGoPvXmDQfouGn7wscFx0u8GBFSFguyxAP0LALs8HFz2tAPfjl/exec";
+const SHEET_URL  = "https://docs.google.com/spreadsheets/d/1OB8ejIU4RxtuyelQpQVT5PSL6aWWt2gJbx9lo8dhTaU/edit";
 const APP_URL = "https://ulziibatbaatar-tech.github.io/bestshoes-habea/";
+const ALERT_HOUR = 9, ALERT_MIN = 15;
 const DEFAULT_PIN = "9761";
 const DEFAULT_PASS_PCT = 80;
- 
+
 // ════════════ PIN SHA-256 ════════════
 async function hashPin(pin){
   const buf=await crypto.subtle.digest("SHA-256",new TextEncoder().encode("habea_pin_salt_"+pin));
   return Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2,"0")).join("");
 }
- 
+
 function normName(n){return(n||"").trim().toLowerCase();}
- 
+
 // ════════════ STORAGE ════════════
 const K={recs:"habea_recs_v5",wrks:"habea_wrks_v3",pin:"habea_pin_v2",queue:"habea_queue_v1",notif:"habea_notif_v1",cfg:"habea_cfg_v1"};
 const lsGet=k=>{try{return JSON.parse(localStorage.getItem(k)||"null");}catch{return null;}};
@@ -140,17 +142,17 @@ const getPin   =()=>localStorage.getItem(K.pin)||"";
 const savePin  =async v=>{const h=await hashPin(v);localStorage.setItem(K.pin,h);};
 const getCfg   =()=>lsGet(K.cfg)||{passPct:DEFAULT_PASS_PCT};
 const saveCfg  =v=>lsSet(K.cfg,v);
- 
+
 (async function initPin(){
   if(!localStorage.getItem(K.pin)){const h=await hashPin(DEFAULT_PIN);localStorage.setItem(K.pin,h);}
 })();
- 
+
 function toDay(){return new Date().toLocaleDateString("mn-MN",{year:"numeric",month:"2-digit",day:"2-digit"});}
 function toNow(){return new Date().toLocaleTimeString("mn-MN",{hour:"2-digit",minute:"2-digit"});}
 function initials(n){if(!n)return"?";return n.trim().split(/\s+/).slice(0,2).map(p=>p[0]||"").join("").toUpperCase()||"?";}
 function chk(){return '<svg width="11" height="9" viewBox="0 0 11 9" fill="none"><polyline points="1,4.5 4,7.5 10,1" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>';}
 function hasSignedToday(name){return getRecs().some(r=>normName(r.name)===normName(name)&&r.date===toDay());}
- 
+
 // ════════════ DOM ════════════
 function el(tag,props,kids){
   const e=document.createElement(tag);
@@ -176,7 +178,7 @@ function brand(fs,white){
   d.innerHTML=`<span class="b-best" style="font-size:${fs}px">BEST</span><span class="${white?"b-shoes-w":"b-shoes-d"}" style="font-size:${fs}px">SHOES</span>`;
   return d;
 }
- 
+
 // ════════════ NOTIFICATION ════════════
 async function reqNotif(){
   if(!("Notification" in window))return false;
@@ -209,11 +211,11 @@ function startAlertTimer(){
   };
   _alertInterval=setInterval(check,60000);check();
 }
- 
+
 // ════════════════════════════════════════════════════════════
 // 🌐 SHEETS API — CORS-тай (POST болон GET хоёулаа)
 // ════════════════════════════════════════════════════════════
- 
+
 // POST: бүртгэл илгээх
 async function postToSheets(payload){
   try{
@@ -226,7 +228,7 @@ async function postToSheets(payload){
     return json;
   }catch(e){return{ok:false,error:e.message};}
 }
- 
+
 // GET: бүртгэл татах
 async function getFromSheets(params){
   try{
@@ -236,14 +238,14 @@ async function getFromSheets(params){
     return json;
   }catch(e){return{ok:false,error:e.message};}
 }
- 
+
 // Бүртгэлийн queue + flush
 async function sendSheets(rec){
   const q=getQueue();
   q.push({payload:{action:"addRecord",...rec,passed:rec.passed?"Тэнцсэн":"Дутуу",instrRead:rec.instrRead?"Тийм":"Үгүй"},ts:Date.now(),attempts:0});
   saveQueue(q);await flushQueue();
 }
- 
+
 async function flushQueue(){
   const q=getQueue();if(!q.length)return;
   const rem=[];
@@ -255,25 +257,25 @@ async function flushQueue(){
   }
   saveQueue(rem);
 }
- 
+
 async function syncWorkers(workers){
   await postToSheets({action:"syncWorkers",workers});
 }
- 
+
 // ════════ Sheets-ээс өнөөдрийн бүртгэл татах ════════
 async function fetchTodayFromSheets(date){
   const res=await getFromSheets({action:"getToday",date:date||toDay()});
   if(!res||!res.ok||!Array.isArray(res.records))return[];
   return res.records;
 }
- 
+
 // ════════ Sheets-ээс ажилтны жагсаалт татах ════════
 async function fetchWorkersFromSheets(){
   const res=await getFromSheets({action:"getWorkers"});
   if(!res||!res.ok||!Array.isArray(res.workers))return null;
   return res.workers;
 }
- 
+
 // ════════ Sheets бүртгэлийг local-тай нэгтгэх ════════
 function mergeRecords(local,remote){
   const seen=new Set(local.map(r=>normName(r.name)+"_"+r.date));
@@ -284,7 +286,7 @@ function mergeRecords(local,remote){
   });
   return merged;
 }
- 
+
 // ════════ Worker автоматаар хадгалах ════════
 function autoSaveWorker(w){
   if(!w.name)return;
@@ -293,7 +295,7 @@ function autoSaveWorker(w){
   if(idx===-1)saveWrks([...ws,w]);
   else{ws[idx]={...ws[idx],...w};saveWrks(ws);}
 }
- 
+
 // ════════ 30 хоносоос хуучин гарын үсэг цэвэрлэх ════════
 function pruneOldSignatures(){
   try{
@@ -312,7 +314,7 @@ function pruneOldSignatures(){
     if(changed)saveRecs(recs);
   }catch(e){}
 }
- 
+
 const INSTRUCTIONS=[
   "Өглөө бүрийн аюулгүй ажиллагааны санамжийг анхааралтай сонсож өдөр тутмын ажилдаа хэвшил болгох.",
   "Машин тоног төхөөрөмжийн бүрэн бүтэн байдлыг шалгаж өөрийн хариуцсан ажлын аюулгүй ажиллагааны заавартай танилцсаны дараа ажлаа эхлүүлнэ.",
@@ -330,7 +332,7 @@ const CHECKLIST=[
   {cat:"⚙️ Тоног төхөөрөмж",items:["Тоног төхөөрөмж шалгасан","Цахилгаан утас гэмтэлгүй","Орчны аюулгүй байдлыг шалгасан","Цаг ашиглалт хөтлөсөн"]}
 ];
 const ALL_ITEMS=CHECKLIST.flatMap(c=>c.items);
- 
+
 // ════════════════════════════════════════════════════════════
 // 🏠 НҮҮР
 // ════════════════════════════════════════════════════════════
@@ -364,7 +366,7 @@ function renderHome(){
     if(added>0)saveWrks(local);
   }).catch(()=>{});
 }
- 
+
 // ════════════════════════════════════════════════════════════
 // 🔐 PIN
 // ════════════════════════════════════════════════════════════
@@ -398,35 +400,35 @@ function renderPin(onOk,onBack){
   const pg=h("div",{className:"center-page",style:{background:"linear-gradient(160deg,var(--gd),var(--g) 70%)"}});
   pg.appendChild(card);app.appendChild(pg);
 }
- 
+
 // ════════════════════════════════════════════════════════════
 // 📲 SHARE — Гоё QR загвар
 // ════════════════════════════════════════════════════════════
 function renderShare(){
   const app=document.getElementById("app");app.innerHTML="";
- 
+
   // Бүтэн хуудас ногоон дэвсгэртэй
   const page=el("div",{style:{minHeight:"100vh",background:"linear-gradient(160deg,var(--gd) 0%,var(--g) 55%,#1a8a4a 100%)",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:"24px",position:"relative",overflow:"hidden"}});
- 
+
   // Арын том тойрог чимэглэл
   const deco1=el("div",{style:{position:"absolute",top:"-80px",right:"-80px",width:"280px",height:"280px",borderRadius:"50%",background:"rgba(255,255,255,.04)",pointerEvents:"none"}});
   const deco2=el("div",{style:{position:"absolute",bottom:"-60px",left:"-60px",width:"220px",height:"220px",borderRadius:"50%",background:"rgba(255,255,255,.04)",pointerEvents:"none"}});
   page.appendChild(deco1);page.appendChild(deco2);
- 
+
   // Гарчиг
   const titleWrap=el("div",{className:"fadeUp",style:{textAlign:"center",marginBottom:"28px"}});
   titleWrap.appendChild(brand(36,true));
   titleWrap.appendChild(h("div",{style:{color:"rgba(255,255,255,.5)",fontSize:"11px",letterSpacing:".2em",textTransform:"uppercase",marginTop:"6px"}},["ХАБЭА · Цахим бүртгэл"]));
   page.appendChild(titleWrap);
- 
+
   // QR карт
   const qrCard=el("div",{className:"scaleIn",style:{background:"#fff",borderRadius:"28px",padding:"28px 28px 20px",textAlign:"center",boxShadow:"0 20px 60px rgba(0,0,0,.25)",maxWidth:"300px",width:"100%",marginBottom:"20px"}});
- 
+
   // QR дээрх лого
   const logoRow=el("div",{style:{display:"flex",alignItems:"center",justifyContent:"center",gap:"6px",marginBottom:"16px"}});
   logoRow.innerHTML=`<span style="font-family:'DM Serif Display',serif;font-size:13px;color:#2ecc71;font-weight:700">BEST</span><span style="font-family:'DM Serif Display',serif;font-size:13px;color:#1a6a3a;font-weight:700">SHOES</span><span style="font-size:10px;color:#6b8f71;margin-left:4px;font-weight:600;letter-spacing:.08em">ХАБЭА</span>`;
   qrCard.appendChild(logoRow);
- 
+
   // QR зураг — ногоон өнгөтэй
   const qrWrap=el("div",{style:{position:"relative",display:"inline-block",margin:"0 auto 16px"}});
   const qrImg=el("img",{
@@ -438,41 +440,41 @@ function renderShare(){
   qrLogo.innerHTML=`<span style="color:#2ecc71;font-family:'DM Serif Display',serif;font-size:14px;font-weight:700">B</span>`;
   qrWrap.appendChild(qrImg);qrWrap.appendChild(qrLogo);
   qrCard.appendChild(qrWrap);
- 
+
   // "Скан хийнэ үү" текст
   qrCard.appendChild(h("div",{style:{fontSize:"12px",color:"#6b8f71",fontWeight:"600",letterSpacing:".05em",marginBottom:"12px"}},["📱 Камераар уншуулна уу"]));
- 
+
   // Хуваагч шугам
   const div=el("div",{style:{height:"1px",background:"linear-gradient(90deg,transparent,#c8e6d0,transparent)",margin:"4px 0 12px"}});
   qrCard.appendChild(div);
- 
+
   // URL хуулах
   const urlBox=el("div",{style:{background:"#f0fdf4",borderRadius:"10px",padding:"8px 12px",fontSize:"11px",color:"#1a6a3a",fontWeight:"700",cursor:"pointer",wordBreak:"break-all",border:"1px solid #c8e6d0",display:"flex",alignItems:"center",gap:"6px",justifyContent:"center"}});
   urlBox.innerHTML=`<span style="font-size:13px">🔗</span><span style="flex:1;text-align:left;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${APP_URL}</span><span style="font-size:11px;opacity:.6;flex-shrink:0">хуулах</span>`;
   urlBox.onclick=()=>{navigator.clipboard.writeText(APP_URL).then(()=>toast("Холбоос хуулагдлаа ✓")).catch(()=>toast("Гараар хуулна уу","info"));};
   qrCard.appendChild(urlBox);
   page.appendChild(qrCard);
- 
+
   // Товчнууд
   const btnWrap=el("div",{className:"fadeUp",style:{width:"100%",maxWidth:"300px",display:"flex",flexDirection:"column",gap:"10px"}});
- 
+
   if(navigator.share){
     const sb=el("button",{style:{width:"100%",padding:"14px",background:"rgba(255,255,255,.15)",color:"#fff",border:"1px solid rgba(255,255,255,.3)",borderRadius:"14px",fontSize:"14px",fontWeight:"700",fontFamily:"'DM Sans',sans-serif",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:"8px"}},["📤  Мессенжерээр илгээх"]);
     sb.onclick=()=>navigator.share({title:"BEST SHOES ХАБЭА",text:"ХАБЭА бүртгэлийн систем",url:APP_URL}).catch(()=>{});
     btnWrap.appendChild(sb);
   }
- 
+
   const backBtn=el("button",{style:{width:"100%",padding:"13px",background:"transparent",color:"rgba(255,255,255,.6)",border:"1px solid rgba(255,255,255,.15)",borderRadius:"14px",fontSize:"14px",fontWeight:"600",fontFamily:"'DM Sans',sans-serif",cursor:"pointer"}},["← Буцах"]);
   backBtn.onclick=renderHome;
   btnWrap.appendChild(backBtn);
   page.appendChild(btnWrap);
- 
+
   // Доод текст
   page.appendChild(h("div",{style:{color:"rgba(255,255,255,.2)",fontSize:"10px",marginTop:"24px",letterSpacing:".12em"}},["BEST SHOES LLC · 2026"]));
- 
+
   app.appendChild(page);
 }
- 
+
 // ════════════════════════════════════════════════════════════
 // ✍️ АЖИЛТНЫ ФОРМ
 // ════════════════════════════════════════════════════════════
@@ -665,7 +667,7 @@ function renderWorkerForm(onDone,onBack){
   }
   render();
 }
- 
+
 // ════════════════════════════════════════════════════════════
 // ✅ АМЖИЛТ
 // ════════════════════════════════════════════════════════════
@@ -685,7 +687,7 @@ function renderSuccess(rec,onHome){
   page.appendChild(card);app.appendChild(page);
   sendNotif("✅ ХАБЭА бүртгэл",`${rec.name} амжилттай бүртгэгдлээ — ${rec.time}`);
 }
- 
+
 // ════════════════════════════════════════════════════════════
 // 🛡️ МЕНЕЖЕР — Sheets-аас бодит өгөгдөл татна
 // ════════════════════════════════════════════════════════════
@@ -693,9 +695,9 @@ function renderManager(onLogout){
   const app=document.getElementById("app");
   let tab="today",selDate=toDay();
   let rt=setInterval(()=>{if(tab==="today")render();},10000);
- 
+
   function ms(lbl,val,ico){return h("div",{className:"stat-box"},[h("div",{className:"stat-ico"},[ico]),h("div",{className:"stat-val",style:{fontSize:"20px"}},[String(val)]),h("div",{className:"stat-lbl"},[lbl])]);}
- 
+
   // Sheets-ийн бүртгэлийг local-тай нэгтгэж хадгалах
   async function syncFromSheets(date){
     const remote=await fetchTodayFromSheets(date);
@@ -704,7 +706,7 @@ function renderManager(onLogout){
     const merged=mergeRecords(local,remote);
     if(merged.length>local.length)saveRecs(merged);
   }
- 
+
   // Sheets-ийн ажилтнуудыг local-тай нэгтгэх
   async function syncWorkersFromSheets(){
     const ws=await fetchWorkersFromSheets();
@@ -715,7 +717,7 @@ function renderManager(onLogout){
     ws.forEach(w=>{if(!seen.has(normName(w.name))){local.push(w);seen.add(normName(w.name));added++;}});
     if(added>0)saveWrks(local);
   }
- 
+
   function render(){
     app.innerHTML="";app.appendChild(build());
     // Арын дэвсгэрт Sheets-аас татаж шинэчилнэ
@@ -731,9 +733,9 @@ function renderManager(onLogout){
       }).catch(()=>{});
     }
   }
- 
+
   function renderBody(){app.innerHTML="";app.appendChild(build());}
- 
+
   function build(){
     const recs=getRecs(),workers=getWrks();
     const todayRecs=recs.filter(r=>r.date===toDay());
@@ -753,7 +755,7 @@ function renderManager(onLogout){
     TABS.forEach(t=>{const b=el("button",{className:"mgr-tab"+(tab===t.id?" on":"")});b.textContent=t.l;b.onclick=()=>{tab=t.id;render();};tr.appendChild(b);});
     hdr.appendChild(tr);page.appendChild(hdr);
     const body=el("div",{className:"mgr-body"});
- 
+
     if(tab==="today"){
       // Синк мэдэгдэл
       const sb=el("div",{className:"sync-bar fadeUp"});
@@ -763,7 +765,7 @@ function renderManager(onLogout){
         sb.innerHTML=remote.length?`☁️ Sheets-ийн ${remote.length} бүртгэл нэгтгэгдлээ`:"☁️ Sheets синк хийгдлээ";
         setTimeout(()=>sb.remove(),3000);
       }).catch(()=>{sb.remove();});
- 
+
       if(Notification.permission==="default"){
         const nb=el("div",{className:"n-banner fadeUp"});
         nb.innerHTML='🔔 <span style="flex:1">09:15-д браузер анхааруулга авах</span>';
@@ -794,7 +796,7 @@ function renderManager(onLogout){
       }
       body.appendChild(el("a",{href:SHEET_URL,target:"_blank",style:{display:"block",textAlign:"center",color:"var(--g)",fontSize:"12px",marginTop:"8px",textDecoration:"none",fontWeight:"700"}},["📊 Google Sheets →"]));
     }
- 
+
     else if(tab==="report"){
       const dc=el("div",{className:"card fadeUp"});
       dc.appendChild(h("div",{className:"card-head"},["📋 Бүртгэлийн тайлан"]));
@@ -828,7 +830,7 @@ function renderManager(onLogout){
         pb.onclick=()=>window.print();body.appendChild(pb);
       }
     }
- 
+
     else if(tab==="workers"){
       const wc=el("div",{className:"card fadeUp"});
       wc.appendChild(h("div",{className:"card-head"},["👥 Ажилтнууд ("+workers.length+")"]));
@@ -862,7 +864,7 @@ function renderManager(onLogout){
       });
       body.appendChild(wc);
     }
- 
+
     else if(tab==="settings"){
       const sc=el("div",{className:"card fadeUp"});
       sc.appendChild(h("div",{className:"card-head"},["⚙️ Тохиргоо"]));
@@ -891,12 +893,12 @@ function renderManager(onLogout){
       cb.onclick=()=>{if(confirm("Бүх бүртгэлийн мэдээлэл устгах уу?")){saveRecs([]);toast("Устгагдлаа","info");render();}};
       sc.appendChild(cb);body.appendChild(sc);
     }
- 
+
     page.appendChild(body);return page;
   }
   render();
 }
- 
+
 renderHome();
 </script>
 </body>
