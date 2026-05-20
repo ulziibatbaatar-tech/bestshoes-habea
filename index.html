@@ -526,18 +526,30 @@ function renderHome(){
   setTimeout(flushQueue,2000);
   setTimeout(pruneOldSignatures,1000);
   setTimeout(pruneNewWorkers,1500);
+  // Sheets-ийн ажилтны жагсаалтыг татаж LocalStorage-тай нэгтгэнэ
+  // Тасаг, тушаал, утас гэх мэт мэдээлэл өөрчлөгдсөн бол шинэчилнэ
   fetchWorkersFromSheets().then(ws=>{
     if(!ws||!ws.length)return;
     const local=getWrks();
-    const seen=new Set(local.map(w=>normName(w.name)));
     const bl=new Set(getBlacklist().map(b=>normName(b.name)));
-    let added=0;
+    const localMap={};
+    local.forEach(w=>{localMap[normName(w.name)]=w;});
+    let changed=false;
     ws.forEach(w=>{
-      if(!seen.has(normName(w.name))&&!bl.has(normName(w.name))){
-        local.push(w);seen.add(normName(w.name));added++;
+      const key=normName(w.name);
+      if(bl.has(key))return; // Хар жагсаалтад байвал алгасна
+      if(!localMap[key]){
+        // Шинэ ажилтан — нэмнэ
+        local.push(w);localMap[key]=w;changed=true;
+      }else{
+        // Байгаа ажилтан — тасаг/тушаал/утас шинэчилнэ (Sheets давуу)
+        const lw=localMap[key];
+        if(w.department&&lw.department!==w.department){lw.department=w.department;changed=true;}
+        if(w.position&&lw.position!==w.position){lw.position=w.position;changed=true;}
+        if(w.phone&&lw.phone!==w.phone){lw.phone=w.phone;changed=true;}
       }
     });
-    if(added>0)saveWrks(local);
+    if(changed)saveWrks(local);
   }).catch(()=>{});
 }
 
