@@ -916,12 +916,8 @@ function renderWorkerForm(onDone,onBack){
       if(state.nameMode==="manual"){nameInpManual.value=nm;}
       state.name=nm;state.position=pos;state.phone=phoneInp.value.trim();
 
-      if(state.nameMode==="manual"){
-        const existing=workers.find(w=>normName(w.name)===normName(nm));
-        if(!existing){
-          autoSaveWorker({name:nm,department:state.department,position:pos,phone:state.phone});
-        }
-      }
+      // autoSaveWorker нь Step 3 (Бүртгүүлэх) дарахад л дуудагдана
+      // Step 0-д дуудахгүй — гарын үсэг зурж дуусаагүй байж болно
 
       if(hasSignedToday(nm)){
         const app=document.getElementById("app");app.innerHTML="";
