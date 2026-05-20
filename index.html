@@ -345,7 +345,18 @@ async function getFromSheets(params){
 }
 async function sendSheets(rec){
   const q=getQueue();
-  q.push({payload:{action:"addRecord",...rec,passed:rec.passed?"Тэнцсэн":"Дутуу",instrRead:rec.instrRead?"Тийм":"Үгүй"},ts:Date.now(),attempts:0});
+  // time-г LocalStorage-ийн хуучин утгаар биш
+  // гарын үсэг зурсан үеийн БОДИТ цагаар баталгаажуулах
+  const safeRec={
+    ...rec,
+    passed:   rec.passed?"Тэнцсэн":"Дутуу",
+    instrRead:rec.instrRead?"Тийм":"Үгүй",
+    // Цаг: rec.time байвал ашиглах, эс бол одоогийн цаг
+    time: rec.time && /^\d{1,2}:\d{2}$/.test(String(rec.time).trim())
+      ? rec.time
+      : toNow()
+  };
+  q.push({payload:{action:"addRecord",...safeRec},ts:Date.now(),attempts:0});
   saveQueue(q);await flushQueue();
 }
 async function flushQueue(){
@@ -1015,7 +1026,9 @@ function renderWorkerForm(onDone,onBack){
         sigCtx.save();sigCtx.globalAlpha=0.22;sigCtx.fillStyle="#1a6a3a";sigCtx.font="bold 11px sans-serif";
         sigCtx.fillText(state.name.trim()+" | "+toDay(),6,sigCanvas.height-6);sigCtx.restore();
       }
-      const rec={name:state.name.trim(),department:state.department.trim(),position:state.position.trim(),phone:state.phone.trim(),date:toDay(),time:toNow(),passed,instrRead:state.instrRead,checkedCount:state.checked.size,signature:sigCanvas.toDataURL("image/jpeg",0.5)};
+      // Цаг: гарын үсэг зурж буй БОДИТ цаг (LocalStorage-ийн хуучин утгаас үл хамаарна)
+      const _signTime=toNow();
+      const rec={name:state.name.trim(),department:state.department.trim(),position:state.position.trim(),phone:state.phone.trim(),date:toDay(),time:_signTime,passed,instrRead:state.instrRead,checkedCount:state.checked.size,signature:sigCanvas.toDataURL("image/jpeg",0.5)};
       const recs=getRecs();recs.push(rec);saveRecs(recs);
       // Утасны дугаар шинэчлэгдэх (байгаа ажилтанд), шинэ ажилтан нэмэх
       autoSaveWorker({name:rec.name,department:rec.department,position:rec.position,phone:rec.phone});
