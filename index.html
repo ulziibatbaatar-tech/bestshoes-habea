@@ -371,38 +371,36 @@ async function fetchWorkersFromSheets(){
 }
 
 // ── Цагийг "HH:MM" хэлбэрт аюулгүй хөрвүүлэх ──
-// Sheets-ээс ирэхэд Date объект эсвэл "Sat Dec 30 1899..." болж болно
+// Цагийг "HH:MM" хэлбэрт аюулгүй хөрвүүлэх
+// LocalStorage болон Sheets-ийн аль ч хэлбэрийн цагийг зөв харуулна
 function safeTime(val){
   if(!val)return"";
   const s=String(val).trim();
-  // 1. Зөв "HH:MM" эсвэл "HH:MM:SS" хэлбэр → шууд буцаах
-  if(/^\d{1,2}:\d{2}(:\d{2})?$/.test(s))return s.substring(0,5);
-  // 2. "Sat Dec 30 1899 09:25:32 GMT+0707..." гэсэн string →
-  //    Apps Script getUTCHours()-аар хадгалсан тул UTC цагийг авна
-  //    GMT+HHMM-г хасаж UTC болгоно
-  const fullMatch=s.match(/(\d{1,2}):(\d{2}):\d{2}\s+GMT([+-])(\d{2})(\d{2})/);
-  if(fullMatch){
-    const lh=parseInt(fullMatch[1]),lm=parseInt(fullMatch[2]);
-    const sign=fullMatch[3]==='+' ? 1:-1;
-    const tzh=parseInt(fullMatch[4]),tzm=parseInt(fullMatch[5]);
-    // UTC цаг = local цаг - timezone
-    let utcMins=(lh*60+lm) - sign*(tzh*60+tzm);
-    utcMins=((utcMins%1440)+1440)%1440;
-    const uh=String(Math.floor(utcMins/60)).padStart(2,"0");
-    const um=String(utcMins%60).padStart(2,"0");
-    return uh===um&&uh==="00"?"":uh+":"+um;
+  // 1. Аль хэдийн "HH:MM" хэлбэр байвал шууд буцаах
+  if(/^\d{1,2}:\d{2}$/.test(s))return s.padStart(5,"0");
+  // 2. "HH:MM:SS" хэлбэр → "HH:MM"
+  if(/^\d{1,2}:\d{2}:\d{2}$/.test(s))return s.substring(0,5);
+  // 3. "Sat Dec 30 1899 09:25:32 GMT+0707..." хэлбэр →
+  //    Apps Script Utilities.formatDate-аар хадгалсан тул '09:25' ирэх ёстой
+  //    Гэхдээ хуучин өгөгдөлд энэ хэлбэр байж болно
+  //    GMT offset-г хасаж UTC авна, тэр нь зөв Монголын цаг
+  const m1=s.match(/(\d{4})\s+(\d{1,2}):(\d{2}):(\d{2})\s+GMT([+-])(\d{2})(\d{2})/);
+  if(m1){
+    // жишээ: "1899 09:25:32 GMT+0700" → UTC = 09:25-07:00 = 02:25
+    // Гэхдээ энд хадгалагдсан цаг нь LOCAL цаг (UB=UTC+8)
+    // Тиймээс string дахь цагийг ШУУД авна (timezone тооцохгүй)
+    const h=m1[2].padStart(2,"0");
+    const min=m1[3];
+    return h+":"+min;
   }
-  // 3. Date объект → getUTCHours()
-  try{
-    const d=new Date(val);
-    if(!isNaN(d.getTime())){
-      const h=String(d.getUTCHours()).padStart(2,"0");
-      const m=String(d.getUTCMinutes()).padStart(2,"0");
-      const r=h+":"+m;
-      return r==="00:00"?"":r;
-    }
-  }catch(e){}
-  return s;
+  // 4. Өөр Date string хэлбэр → regex-ээр цаг авна
+  const m2=s.match(/\b(\d{1,2}):(\d{2})(?::\d{2})?\b/);
+  if(m2){
+    const h=parseInt(m2[1]);
+    // 0-24 хооронд байвал зөв цаг гэж үзнэ
+    if(h>=0&&h<24)return String(h).padStart(2,"0")+":"+m2[2];
+  }
+  return"";
 }
 function mergeRecords(local,remote){
   const seen=new Set(local.map(r=>normName(r.name)+"_"+r.date));
@@ -444,9 +442,18 @@ function pruneOldSignatures(){
     const cutoff=Date.now()-30*24*60*60*1000;
     let changed=false;
     recs.forEach(r=>{
+      // Гарын үсгийн санах ой цэвэрлэх
       if(r.signature&&r.signature!=="signed"){
         const iso=mnToISO(r.date);
         if(iso){const d=new Date(iso);if(d.getTime()<cutoff){r.signature="signed";changed=true;}}
+      }
+      // Буруу цагийг засах — "Sat Dec 30 1899..." эсвэл "21:25" хэлбэрийн буруу цаг
+      if(r.time&&r.time.toString().includes("1899")){
+        r.time=safeTime(r.time);changed=true;
+      }
+      // "HH:MM:SS" → "HH:MM" болгох
+      if(r.time&&/^\d{1,2}:\d{2}:\d{2}$/.test(r.time)){
+        r.time=r.time.substring(0,5);changed=true;
       }
     });
     if(changed)saveRecs(recs);
