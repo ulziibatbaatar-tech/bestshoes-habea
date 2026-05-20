@@ -403,16 +403,40 @@ function safeTime(val){
   return"";
 }
 function mergeRecords(local,remote){
-  const seen=new Set(local.map(r=>normName(r.name)+"_"+r.date));
-  const merged=[...local];
+  // Sheets-ийн өгөгдлийг LOCAL-аас ДАВУУ болгох
+  // Учир нь LocalStorage-д буруу цаг хадгалагдсан байж болно
+  // Sheets-д Utilities.formatDate-аар зөв цаг хадгалагдсан
+  const localMap={};
+  local.forEach(r=>{localMap[normName(r.name)+"_"+r.date]=r;});
+
+  const remoteMap={};
   remote.forEach(r=>{
     const key=normName(r.name)+"_"+r.date;
-    if(!seen.has(key)){
-      seen.add(key);
-      // Sheets-ээс ирэх цагийг засах
-      merged.push({...r,time:safeTime(r.time)});
+    remoteMap[key]={...r,time:safeTime(r.time)};
+  });
+
+  // Remote өгөгдлийг эхлээд авна (зөв цагтай)
+  // Local-д байгаа ч remote-д байвал remote-ийнх ДАВУУ (цаг засахын тулд)
+  const merged=[];
+  const seen=new Set();
+
+  // Remote-ийн бүртгэл эхэлж
+  Object.entries(remoteMap).forEach(([key,r])=>{
+    seen.add(key);
+    const local=localMap[key];
+    if(local){
+      // Signature-г local-аас авна (Sheets-д байхгүй)
+      merged.push({...r,signature:local.signature||r.signature||"signed"});
+    }else{
+      merged.push(r);
     }
   });
+
+  // Local-д байгаа ч remote-д байхгүй бүртгэл нэмэх
+  Object.entries(localMap).forEach(([key,r])=>{
+    if(!seen.has(key)){seen.add(key);merged.push(r);}
+  });
+
   return merged;
 }
 function autoSaveWorker(w){
@@ -1034,8 +1058,11 @@ function renderManager(onLogout){
 
   async function syncFromSheets(date){
     const remote=await fetchTodayFromSheets(date);if(!remote.length)return;
-    const local=getRecs();const merged=mergeRecords(local,remote);
-    if(merged.length>local.length)saveRecs(merged);
+    const local=getRecs();
+    const merged=mergeRecords(local,remote);
+    // Sheets өгөгдлийг давуу болгосон тул merged нь local-аас өөр байж болно
+    // Тиймээс length шалгалтгүйгээр хадгалах
+    saveRecs(merged);
   }
   async function syncWorkersFromSheets(){
     const ws=await fetchWorkersFromSheets();if(!ws||!ws.length)return;
