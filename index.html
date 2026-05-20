@@ -372,33 +372,32 @@ async function fetchWorkersFromSheets(){
 
 // ── Цагийг "HH:MM" хэлбэрт аюулгүй хөрвүүлэх ──
 // Цагийг "HH:MM" хэлбэрт аюулгүй хөрвүүлэх
-// LocalStorage болон Sheets-ийн аль ч хэлбэрийн цагийг зөв харуулна
 function safeTime(val){
   if(!val)return"";
   const s=String(val).trim();
-  // 1. Аль хэдийн "HH:MM" хэлбэр байвал шууд буцаах
+  // 1. "HH:MM" хэлбэр → шууд буцаах
   if(/^\d{1,2}:\d{2}$/.test(s))return s.padStart(5,"0");
-  // 2. "HH:MM:SS" хэлбэр → "HH:MM"
+  // 2. "HH:MM:SS" → "HH:MM"
   if(/^\d{1,2}:\d{2}:\d{2}$/.test(s))return s.substring(0,5);
-  // 3. "Sat Dec 30 1899 09:25:32 GMT+0707..." хэлбэр →
-  //    Apps Script Utilities.formatDate-аар хадгалсан тул '09:25' ирэх ёстой
-  //    Гэхдээ хуучин өгөгдөлд энэ хэлбэр байж болно
-  //    GMT offset-г хасаж UTC авна, тэр нь зөв Монголын цаг
-  const m1=s.match(/(\d{4})\s+(\d{1,2}):(\d{2}):(\d{2})\s+GMT([+-])(\d{2})(\d{2})/);
-  if(m1){
-    // жишээ: "1899 09:25:32 GMT+0700" → UTC = 09:25-07:00 = 02:25
-    // Гэхдээ энд хадгалагдсан цаг нь LOCAL цаг (UB=UTC+8)
-    // Тиймээс string дахь цагийг ШУУД авна (timezone тооцохгүй)
-    const h=m1[2].padStart(2,"0");
-    const min=m1[3];
-    return h+":"+min;
-  }
-  // 4. Өөр Date string хэлбэр → regex-ээр цаг авна
-  const m2=s.match(/\b(\d{1,2}):(\d{2})(?::\d{2})?\b/);
-  if(m2){
-    const h=parseInt(m2[1]);
-    // 0-24 хооронд байвал зөв цаг гэж үзнэ
-    if(h>=0&&h<24)return String(h).padStart(2,"0")+":"+m2[2];
+  // 3. "Sat Dec 30 1899 HH:MM:SS GMT+HHMM..." Date string
+  // GMT offset хасаж UTC авна: local - offset = UTC
+  // Apps Script Utilities.formatDate ашигласан тул энэ хэлбэр ирэхгүй
+  // Гэхдээ хуучин өгөгдөлд байж болно — засаж харуулна
+  const gmtMatch=s.match(/(\d{1,2}):(\d{2}):\d{2}\s+GMT([+-])(\d{2})(\d{2})/);
+  if(gmtMatch){
+    const lh=parseInt(gmtMatch[1]),lm=parseInt(gmtMatch[2]);
+    const sign=gmtMatch[3]==='+'?1:-1;
+    const tzh=parseInt(gmtMatch[4]),tzm=parseInt(gmtMatch[5]);
+    // UTC минут
+    let utc=(lh*60+lm)-sign*(tzh*60+tzm);
+    utc=((utc%1440)+1440)%1440;
+    // Монгол цаг UTC+8
+    const mn=((utc+8*60)%1440+1440)%1440;
+    // Хэрэв 09:25 орчим байвал шууд local цагийг авна (ойролцоо тооцоо)
+    // Практикт: string дахь цагийг UTC+7:07 гэж тооцоолоод UTC авч UB нэмнэ
+    const h=String(Math.floor(mn/60)).padStart(2,"0");
+    const m=String(mn%60).padStart(2,"0");
+    return h+":"+m;
   }
   return"";
 }
