@@ -198,9 +198,33 @@ function addToBlacklist(worker) {
       name: worker.name,
       department: worker.department || "",
       position: worker.position || "",
-      deletedAt: toDay()
+      deletedAt: toDay(),
+      deletedTs: Date.now()  // 72 цагийн тооллого эхлэх timestamp
     });
     saveBlacklist(bl);
+  }
+}
+
+// 72 цагийн дараа blacklist-ийн ажилтнуудыг бүрэн устгах
+function pruneBlacklist() {
+  const HOURS_72 = 72 * 60 * 60 * 1000;
+  const now = Date.now();
+  const bl = getBlacklist();
+  const remaining = bl.filter(b => {
+    if (!b.deletedTs) return true; // timestamp байхгүй бол хэвээр үлдэнэ
+    return (now - b.deletedTs) < HOURS_72;
+  });
+  if (remaining.length !== bl.length) {
+    saveBlacklist(remaining);
+    // Ажилтны жагсаалтаас бас устгагдсан эсэхийг шалгах
+    const ws = getWrks();
+    const removed = bl.filter(b => b.deletedTs && (now - b.deletedTs) >= HOURS_72);
+    let changed = false;
+    removed.forEach(b => {
+      const idx = ws.findIndex(w => normName(w.name) === normName(b.name));
+      if (idx > -1) { ws.splice(idx, 1); changed = true; }
+    });
+    if (changed) { saveWrks(ws); syncWorkers(ws); }
   }
 }
 
@@ -536,6 +560,7 @@ function renderHome(){
   setTimeout(flushQueue,2000);
   setTimeout(pruneOldSignatures,1000);
   setTimeout(pruneNewWorkers,1500);
+  setTimeout(pruneBlacklist,2000); // 72 цагийн дараа устгагдсан ажилтнуудыг цэвэрлэх
   // Sheets-ийн ажилтны жагсаалтыг татаж LocalStorage-тай нэгтгэнэ
   // Тасаг, тушаал, утас гэх мэт мэдээлэл өөрчлөгдсөн бол шинэчилнэ
   fetchWorkersFromSheets().then(ws=>{
@@ -1425,7 +1450,9 @@ function renderManager(onLogout){
             const db=el("button",{className:"btn btn-d btn-sm"},["🚫"]);
             db.onclick=()=>{
               if(!confirm(`"${w.name}" хасах уу?`))return;
-              addToBlacklist(w);const ws=getWrks();ws.splice(i,1);saveWrks(ws);syncWorkers(ws);
+              addToBlacklist(w);
+              const ws=getWrks();ws.splice(i,1);saveWrks(ws);
+              syncWorkers(ws);
               toast(`"${w.name}" хасагдлаа`,"info");render();
             };
             const actWrap=h("div",{style:{display:"flex",gap:"4px"}});
@@ -1482,11 +1509,16 @@ function renderManager(onLogout){
           const row=el("div",{className:"w-row",style:{background:"#fef2f2",borderRadius:"10px",padding:"10px",marginBottom:"6px",border:"1px solid #fca5a5"}});
           const av=el("div",{className:"w-av",style:{background:"linear-gradient(135deg,#c0392b,#922b21)"}},[initials(b.name)]);
           row.appendChild(av);
+          // 72 цаг хэдэн цаг үлдсэн тооцоолох
+          const _hoursLeft = b.deletedTs
+            ? Math.max(0, Math.ceil((72*60*60*1000-(Date.now()-b.deletedTs))/(60*60*1000)))
+            : 72;
           row.appendChild(h("div",{style:{flex:"1"}},[
             h("div",{className:"w-name",style:{color:"#c0392b"}},[b.name]),
-            h("div",{className:"w-sub"},[b.department+(b.deletedAt?" · Хасагдсан: "+b.deletedAt:"")])
+            h("div",{className:"w-sub"},[b.department+(b.deletedAt?" · Хасагдсан: "+b.deletedAt:"")+
+              (_hoursLeft>0?" · 🕐 "+_hoursLeft+"ц үлдсэн":" · Устах боломжтой")])
           ]));
-          row.appendChild(el("div",{className:"badge bg-r"},["🚫 Хаалттай"]));
+          row.appendChild(el("div",{className:"badge bg-r"},["🚫 "+(_hoursLeft>0?_hoursLeft+"ц":"Устана")]));
           // Сэргээх товч
           const restoreBtn=el("button",{className:"btn btn-o btn-sm",style:{marginLeft:"6px",fontSize:"11px",color:"var(--g)",borderColor:"var(--g)"}},["↩ Сэргээх"]);
           restoreBtn.onclick=()=>{
