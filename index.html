@@ -374,20 +374,32 @@ async function fetchWorkersFromSheets(){
 // Sheets-ээс ирэхэд Date объект эсвэл "Sat Dec 30 1899..." болж болно
 function safeTime(val){
   if(!val)return"";
-  const s=String(val);
-  // Зөв "HH:MM" хэлбэр байвал шууд буцаах
-  if(/^\d{1,2}:\d{2}$/.test(s.trim()))return s.trim();
-  // Date объект эсвэл Date string байвал parse хийх
+  const s=String(val).trim();
+  // 1. Зөв "HH:MM" эсвэл "HH:MM:SS" хэлбэр → шууд буцаах
+  if(/^\d{1,2}:\d{2}(:\d{2})?$/.test(s))return s.substring(0,5);
+  // 2. "Sat Dec 30 1899 09:25:32 GMT+0707..." гэсэн string →
+  //    Apps Script getUTCHours()-аар хадгалсан тул UTC цагийг авна
+  //    GMT+HHMM-г хасаж UTC болгоно
+  const fullMatch=s.match(/(\d{1,2}):(\d{2}):\d{2}\s+GMT([+-])(\d{2})(\d{2})/);
+  if(fullMatch){
+    const lh=parseInt(fullMatch[1]),lm=parseInt(fullMatch[2]);
+    const sign=fullMatch[3]==='+' ? 1:-1;
+    const tzh=parseInt(fullMatch[4]),tzm=parseInt(fullMatch[5]);
+    // UTC цаг = local цаг - timezone
+    let utcMins=(lh*60+lm) - sign*(tzh*60+tzm);
+    utcMins=((utcMins%1440)+1440)%1440;
+    const uh=String(Math.floor(utcMins/60)).padStart(2,"0");
+    const um=String(utcMins%60).padStart(2,"0");
+    return uh===um&&uh==="00"?"":uh+":"+um;
+  }
+  // 3. Date объект → getUTCHours()
   try{
     const d=new Date(val);
     if(!isNaN(d.getTime())){
-      // 1899 оны огноо = цаг утга (Sheets-ийн алдаа)
-      // Цагийг авна
-      const h=String(d.getHours()).padStart(2,"0");
-      const m=String(d.getMinutes()).padStart(2,"0");
-      const result=h+":"+m;
-      // 00:00 буцаавал хоосон гэж үзнэ
-      return result==="00:00"?"":result;
+      const h=String(d.getUTCHours()).padStart(2,"0");
+      const m=String(d.getUTCMinutes()).padStart(2,"0");
+      const r=h+":"+m;
+      return r==="00:00"?"":r;
     }
   }catch(e){}
   return s;
