@@ -662,10 +662,88 @@ function buildDetailReport(body, selDate, dateRecs) {
   const csvBtn=el("button",{className:"btn btn-o btn-sm no-print"},["📥 CSV"]);
   csvBtn.onclick=()=>{
     const rows=[["Огноо","Цаг","Нэр","Тасаг","Тушаал","Утас","Шалгалт","Гарын үсэг"]];
-    dateRecs.forEach(r=>rows.push([r.date,safeTime(r.time),r.name,r.department,r.position||"",r.phone||"",r.passed?"Тэнцсэн":"Дутуу",sigs[r.name]?"Зурсан":"Зураагүй"]));
+    dateRecs.forEach(r=>rows.push([r.date,safeTime(r.time),r.name,r.department,r.position||"",r.phone||"",r.passed?"Тэнцсэн":"Дутуу",sigs[r.name]&&sigs[r.name]!=="signed"?"Зурсан (зургийг HTML файлаас харна уу)":"Зурсан"]));
     const csv="\uFEFF"+rows.map(r=>r.map(c=>'"'+String(c||"").replace(/"/g,'""')+'"').join(",")).join("\n");
     const blob=new Blob([csv],{type:"text/csv;charset=utf-8;"});
     const url=URL.createObjectURL(blob);const a=document.createElement("a");a.href=url;a.download="ХАБЭА_"+selDate+".csv";a.click();URL.revokeObjectURL(url);
+  };
+
+  // HTML export — гарын үсэгтэй хамт Excel-д нээгдэнэ
+  const htmlBtn=el("button",{className:"btn btn-o btn-sm no-print"},["📊 Excel (г/үтэй)"]);
+  htmlBtn.onclick=()=>{
+    // Хүснэгтийн HTML үүсгэх
+    const depts={};
+    dateRecs.forEach(r=>{const d=r.department||"Бусад";if(!depts[d])depts[d]=[];depts[d].push(r);});
+
+    let tbody="";
+    dateRecs.forEach((r,idx)=>{
+      const wSig=sigs[r.name];
+      const sigCell=wSig&&wSig!=="signed"
+        ?`<img src="${wSig}" style="height:40px;max-width:100px;background:#fff;border:1px solid #ccc;border-radius:4px;">`
+        :wSig==="signed"?'<span style="color:#1a6a3a;font-weight:700">✓ Зурсан</span>'
+        :'<span style="color:#aaa">—</span>';
+      const mgrCell=_mgrSig
+        ?`<img src="${_mgrSig}" style="height:40px;max-width:100px;background:#fff;border:1px solid #ccc;border-radius:4px;">`
+        :'<span style="color:#aaa">—</span>';
+      tbody+=`<tr style="background:${idx%2===0?"#f9f9f9":"#fff"}">
+        <td style="padding:6px 10px;border:1px solid #ddd;text-align:center;">${idx+1}</td>
+        <td style="padding:6px 10px;border:1px solid #ddd;font-weight:bold;">${r.name||""}</td>
+        <td style="padding:6px 10px;border:1px solid #ddd;">${r.department||""}</td>
+        <td style="padding:6px 10px;border:1px solid #ddd;font-family:monospace;">${safeTime(r.time)||""}</td>
+        <td style="padding:6px 10px;border:1px solid #ddd;text-align:center;">
+          <span style="color:${r.passed?"#1a6a3a":"#e74c3c"};font-weight:bold;">${r.passed?"✓ Тэнцсэн":"⚠ Дутуу"}</span>
+        </td>
+        <td style="padding:6px 10px;border:1px solid #ddd;text-align:center;">${sigCell}</td>
+        <td style="padding:6px 10px;border:1px solid #ddd;text-align:center;">${mgrCell}</td>
+      </tr>`;
+    });
+
+    const total=dateRecs.length;
+    const passed=dateRecs.filter(r=>r.passed).length;
+    const signed=Object.keys(sigs).length;
+
+    const html=`<!DOCTYPE html>
+<html lang="mn"><head><meta charset="UTF-8">
+<title>BEST SHOES ХАБЭА - ${selDate}</title>
+<style>
+  body{font-family:Arial,sans-serif;margin:20px;color:#1a2e1f;}
+  h1{color:#1a6a3a;font-size:20px;margin-bottom:4px;}
+  .stats{display:flex;gap:16px;margin:12px 0 16px;flex-wrap:wrap;}
+  .stat{background:#f0fdf4;border:1px solid #c8e6d0;border-radius:8px;padding:8px 16px;text-align:center;}
+  .stat-val{font-size:22px;font-weight:bold;color:#1a6a3a;}
+  .stat-lbl{font-size:11px;color:#6b8f71;}
+  table{border-collapse:collapse;width:100%;font-size:13px;}
+  th{background:#0d3a1f;color:#fff;padding:8px 10px;border:1px solid #0d3a1f;text-align:center;font-size:11px;letter-spacing:.05em;}
+  img{display:block;margin:0 auto;}
+  @media print{body{margin:10px;}}
+</style>
+</head><body>
+<h1>🏭 BEST SHOES — ХАБЭА Өдрийн тайлан</h1>
+<p style="color:#6b8f71;font-size:13px;">📅 ${selDate}</p>
+<div class="stats">
+  <div class="stat"><div class="stat-val">${total}</div><div class="stat-lbl">Нийт</div></div>
+  <div class="stat"><div class="stat-val">${passed}</div><div class="stat-lbl">Тэнцсэн</div></div>
+  <div class="stat"><div class="stat-val">${total-passed}</div><div class="stat-lbl">Дутуу</div></div>
+  <div class="stat"><div class="stat-val">${signed}</div><div class="stat-lbl">Гарын үсэг</div></div>
+  <div class="stat"><div class="stat-val">${total?Math.round(passed/total*100):0}%</div><div class="stat-lbl">Гүйцэтгэл</div></div>
+</div>
+<table>
+  <thead><tr>
+    <th>#</th><th>Нэр</th><th>Тасаг</th><th>Цаг</th><th>Шалгалт</th>
+    <th>Ажилтны гарын үсэг</th><th>Менежерийн гарын үсэг</th>
+  </tr></thead>
+  <tbody>${tbody}</tbody>
+</table>
+<p style="color:#aaa;font-size:11px;margin-top:16px;text-align:right;">BEST SHOES LLC · ХАБЭА · ${selDate}</p>
+</body></html>`;
+
+    const blob=new Blob([html],{type:"text/html;charset=utf-8;"});
+    const url=URL.createObjectURL(blob);
+    const a=document.createElement("a");
+    a.href=url;
+    a.download="ХАБЭА_"+selDate+".html";
+    a.click();
+    URL.revokeObjectURL(url);
   };
   const mgrBtn=el("button",{className:"btn btn-o btn-sm no-print"},["✍️ Менежерийн г/ү"]);
   mgrBtn.onclick=()=>showMgrSigModal2(MGR_KEY,(sig,name)=>{mgrSig=sig;mgrName=name;document.querySelectorAll(".mgr-sig-cell").forEach((c,i)=>renderMgrCell(c,sig,name));});
