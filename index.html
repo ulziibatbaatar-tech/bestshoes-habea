@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="mn">
 <head>
@@ -299,17 +298,27 @@ function pruneNewWorkers() {
 
 // ════════════ DATE HELPERS ════════════
 function _pad(n){return String(n).padStart(2,"0");}
+// Улаанбаатарын цаг — Intl.DateTimeFormat ашиглан найдвартай авна
+// getTimezoneOffset()-аас үл хамаарна
+function _ubNow(){
+  const fmt=new Intl.DateTimeFormat("en-US",{
+    timeZone:"Asia/Ulaanbaatar",
+    year:"numeric",month:"2-digit",day:"2-digit",
+    hour:"2-digit",minute:"2-digit",second:"2-digit",hour12:false
+  });
+  const parts={};
+  fmt.formatToParts(new Date()).forEach(({type,value})=>{parts[type]=value;});
+  return parts;
+}
 function toDay(){
-  // Улаанбаатарын цаг UTC+8
-  const n=new Date();
-  const ub=new Date(n.getTime()+n.getTimezoneOffset()*60000+8*3600000);
-  return `${ub.getFullYear()}.${_pad(ub.getMonth()+1)}.${_pad(ub.getDate())}`;
+  const p=_ubNow();
+  return `${p.year}.${p.month}.${p.day}`;
 }
 function toNow(){
-  // Улаанбаатарын цаг UTC+8
-  const n=new Date();
-  const ub=new Date(n.getTime()+n.getTimezoneOffset()*60000+8*3600000);
-  return `${_pad(ub.getHours())}:${_pad(ub.getMinutes())}`;
+  const p=_ubNow();
+  // 24:xx → 00:xx засвар
+  const h=p.hour==="24"?"00":p.hour;
+  return `${h}:${p.minute}`;
 }
 function mnToISO(mnDate){
   if(!mnDate)return "";
@@ -372,10 +381,11 @@ function startAlertTimer(){
   const todayKey="notif_"+toDay();
   if(localStorage.getItem(K.notif)===todayKey)return;
   const check=()=>{
-    const n=new Date();
-    const _ub=new Date(n.getTime()+n.getTimezoneOffset()*60000+8*3600000);
+    const _ubp=_ubNow();
+    const _ubH=parseInt(_ubp.hour==="24"?"0":_ubp.hour);
+    const _ubM=parseInt(_ubp.minute);
     const _ac=getCfg();const _ah=_ac.alertHour||ALERT_HOUR;const _am=_ac.alertMin||ALERT_MIN;
-    if(_ub.getHours()===_ah&&_ub.getMinutes()>=_am){
+    if(_ubH===_ah&&_ubM>=_am){
       const workers=getWrks(),recs=getRecs();
       const signed=new Set(recs.filter(r=>r.date===toDay()).map(r=>normName(r.name)));
       const unsigned=workers.filter(w=>!signed.has(normName(w.name)));
@@ -1383,7 +1393,7 @@ function renderWorkerForm(onDone,onBack){
       // ══ ЦАГИЙН ХЯЗГААР ══
       const _cfg3=getCfg();
       if(_cfg3.regStart&&_cfg3.regEnd){
-        const _n2=new Date(),_ub2=new Date(_n2.getTime()+_n2.getTimezoneOffset()*60000+8*3600000),_nm2=_ub2.getHours()*60+_ub2.getMinutes();
+        const _ubp2=_ubNow(),_nm2=(parseInt(_ubp2.hour==="24"?"0":_ubp2.hour))*60+parseInt(_ubp2.minute);
         const [_sh,_sm]=(_cfg3.regStart).split(":").map(Number);
         const [_eh,_em]=(_cfg3.regEnd).split(":").map(Number);
         if(_nm2<_sh*60+_sm||_nm2>_eh*60+_em){
