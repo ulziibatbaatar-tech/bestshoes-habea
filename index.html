@@ -298,27 +298,24 @@ function pruneNewWorkers() {
 
 // ════════════ DATE HELPERS ════════════
 function _pad(n){return String(n).padStart(2,"0");}
-// Улаанбаатарын цаг — Intl.DateTimeFormat ашиглан найдвартай авна
-// getTimezoneOffset()-аас үл хамаарна
-function _ubNow(){
-  const fmt=new Intl.DateTimeFormat("en-US",{
-    timeZone:"Asia/Ulaanbaatar",
-    year:"numeric",month:"2-digit",day:"2-digit",
-    hour:"2-digit",minute:"2-digit",second:"2-digit",hour12:false
-  });
-  const parts={};
-  fmt.formatToParts(new Date()).forEach(({type,value})=>{parts[type]=value;});
-  return parts;
+// Улаанбаатарын цаг — toLocaleString аргаар
+// Бүх браузер, бүх timezone-д найдвартай ажилладаг
+function _getUBDate(){
+  // "2026/05/23 09:34" хэлбэрт авна
+  const s=new Date().toLocaleString("sv-SE",{timeZone:"Asia/Ulaanbaatar"});
+  // sv-SE locale → "2026-05-23 09:34:01" стандарт формат
+  const [datePart,timePart]=s.split(" ");
+  const [year,month,day]=datePart.split("-");
+  const [hour,minute]=timePart.split(":");
+  return{year,month,day,hour,minute};
 }
 function toDay(){
-  const p=_ubNow();
+  const p=_getUBDate();
   return `${p.year}.${p.month}.${p.day}`;
 }
 function toNow(){
-  const p=_ubNow();
-  // 24:xx → 00:xx засвар
-  const h=p.hour==="24"?"00":p.hour;
-  return `${h}:${p.minute}`;
+  const p=_getUBDate();
+  return `${p.hour}:${p.minute}`;
 }
 function mnToISO(mnDate){
   if(!mnDate)return "";
@@ -381,8 +378,8 @@ function startAlertTimer(){
   const todayKey="notif_"+toDay();
   if(localStorage.getItem(K.notif)===todayKey)return;
   const check=()=>{
-    const _ubp=_ubNow();
-    const _ubH=parseInt(_ubp.hour==="24"?"0":_ubp.hour);
+    const _ubp=_getUBDate();
+    const _ubH=parseInt(_ubp.hour);
     const _ubM=parseInt(_ubp.minute);
     const _ac=getCfg();const _ah=_ac.alertHour||ALERT_HOUR;const _am=_ac.alertMin||ALERT_MIN;
     if(_ubH===_ah&&_ubM>=_am){
@@ -1393,7 +1390,7 @@ function renderWorkerForm(onDone,onBack){
       // ══ ЦАГИЙН ХЯЗГААР ══
       const _cfg3=getCfg();
       if(_cfg3.regStart&&_cfg3.regEnd){
-        const _ubp2=_ubNow(),_nm2=(parseInt(_ubp2.hour==="24"?"0":_ubp2.hour))*60+parseInt(_ubp2.minute);
+        const _ubp2=_getUBDate(),_nm2=parseInt(_ubp2.hour)*60+parseInt(_ubp2.minute);
         const [_sh,_sm]=(_cfg3.regStart).split(":").map(Number);
         const [_eh,_em]=(_cfg3.regEnd).split(":").map(Number);
         if(_nm2<_sh*60+_sm||_nm2>_eh*60+_em){
