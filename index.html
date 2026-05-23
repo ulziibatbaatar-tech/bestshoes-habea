@@ -669,7 +669,7 @@ function buildDetailReport(body, selDate, dateRecs) {
   };
 
   // HTML export — гарын үсэгтэй хамт Excel-д нээгдэнэ
-  const htmlBtn=el("button",{className:"btn btn-o btn-sm no-print"},["📊 Excel (г/үтэй)"]);
+  const htmlBtn=el("button",{className:"btn btn-o btn-sm no-print"},["🖨️ Тайлан (г/үтэй)"]);
   htmlBtn.onclick=()=>{
     // Хүснэгтийн HTML үүсгэх
     const depts={};
@@ -741,7 +741,7 @@ function buildDetailReport(body, selDate, dateRecs) {
     const url=URL.createObjectURL(blob);
     const a=document.createElement("a");
     a.href=url;
-    a.download="ХАБЭА_"+selDate+".html";
+    a.download="ХАБЭА_тайлан_"+selDate+".html";
     a.click();
     URL.revokeObjectURL(url);
   };
