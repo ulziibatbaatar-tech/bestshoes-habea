@@ -1133,8 +1133,8 @@ function renderHome(){
         icon:"icon-192x192.png"
       });
     }
-    // Google Form нээх
-    window.open(HAZARD_FORM_URL,"_blank");
+    // Google Form нээх — мобайл Safari/Chrome popup blocker тойрч шууд redirect
+    window.location.href = HAZARD_FORM_URL;
   };
   bw.appendChild(bs);bw.appendChild(hazardBtn);bw.appendChild(shareBtn);bw.appendChild(bm);inner.appendChild(bw);
   inner.appendChild(h("div",{style:{color:"rgba(255,255,255,.15)",fontSize:"11px",marginTop:"32px"}},["BEST SHOES LLC — ХАБЭА Цахим бүртгэл"]));
