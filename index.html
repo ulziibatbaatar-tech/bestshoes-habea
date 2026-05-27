@@ -120,6 +120,7 @@ body{font-family:'DM Sans',sans-serif;background:var(--gp);color:var(--ink);min-
 .range-lbl{font-size:13px;font-weight:700;color:var(--g);min-width:36px;text-align:right;}
 /* ── Хаагдсан ажилтны картын өнгө ── */
 .w-row-blocked{background:#fef2f2;border-radius:10px;padding:10px;margin-bottom:4px;}
+@keyframes pulse{0%,100%{opacity:1;}50%{opacity:.7;}}
 @media print{.no-print{display:none!important;}body{background:#fff;}.card{box-shadow:none;border:1px solid #ccc;}.mgr-hdr{background:#1a6a3a!important;-webkit-print-color-adjust:exact;print-color-adjust:exact;}}
 /* ── Дэлгэрэнгүй тайлан ── */
 .rpt-header{background:linear-gradient(135deg,var(--gd) 0%,var(--g) 60%,#1e8a4e 100%);padding:20px 16px 16px;border-radius:16px;margin-bottom:14px;position:relative;overflow:hidden;}
@@ -167,6 +168,9 @@ const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbygQOi-y76ikqCXkAfzN
 const SHEET_URL  = "https://docs.google.com/spreadsheets/d/1OB8ejIU4RxtuyelQpQVT5PSL6aWWt2gJbx9lo8dhTaU/edit";
 const APP_URL    = "https://ulziibatbaatar-tech.github.io/bestshoes-habea/";
 const ALERT_HOUR = 9, ALERT_MIN = 15;
+const HAZARD_FORM_URL = "https://docs.google.com/forms/d/e/1FAIpQLSdISoAU5VIJUJBfglhL7XJPm0UehKk83x7Tca6o-iRX50R8yg/viewform";
+const HAZARD_RESPONSES_URL = "https://docs.google.com/spreadsheets/d/1rQceNzFbJiXu6SmzwuibMQ3VIcP0OSgz4TZYpKuaZ8w/edit";
+const HAZARD_NOTIF_KEY = "habea_hazard_notifs_v1";
 const DEFAULT_PIN = "9761";
 const DEFAULT_PASS_PCT = 80;
 const DEPTS = ["Гүйцэтгэл","Оёдол","Гоёл","Санхүү","Эсгүүр","Захиргаа"];
@@ -1056,6 +1060,37 @@ function renderMgrCell(cell,sig,name){
 }
 
 
+// ════════════════════════════════════════════════════════════
+// 🚨 АЮУЛЫН МЭДЭГДЭЛ
+// ════════════════════════════════════════════════════════════
+function getHazardNotifs(){ return lsGet(HAZARD_NOTIF_KEY)||[]; }
+function saveHazardNotifs(v){ lsSet(HAZARD_NOTIF_KEY,v); }
+
+function addHazardNotif(name,dept){
+  const notifs=getHazardNotifs();
+  notifs.unshift({
+    id: Date.now(),
+    name: name||"Тодорхойгүй",
+    dept: dept||"",
+    time: toNow(),
+    date: toDay(),
+    read: false
+  });
+  // Хамгийн ихдээ 20 мэдэгдэл хадгална
+  if(notifs.length>20) notifs.splice(20);
+  saveHazardNotifs(notifs);
+}
+
+function getUnreadHazardCount(){
+  return getHazardNotifs().filter(n=>!n.read).length;
+}
+
+function markHazardNotifsRead(){
+  const notifs=getHazardNotifs();
+  notifs.forEach(n=>n.read=true);
+  saveHazardNotifs(notifs);
+}
+
 function renderHome(){
   const app=document.getElementById("app");app.innerHTML="";
   const page=h("div",{className:"page home-bg center-page"});
@@ -1070,7 +1105,38 @@ function renderHome(){
   shareBtn.onclick=()=>renderShare();
   const bm=el("button",{className:"btn-ghost"},["🛡️  Менежерийн хяналт"]);
   bm.onclick=()=>renderPin(()=>renderManager(renderHome),renderHome);
-  bw.appendChild(bs);bw.appendChild(shareBtn);bw.appendChild(bm);inner.appendChild(bw);
+  // 🚨 Аюул мэдээлэх товч
+  const hazardBtn=el("button",{style:{
+    padding:"14px",
+    background:"linear-gradient(135deg,#c0392b,#922b21)",
+    color:"#fff",
+    border:"1px solid rgba(255,100,100,.3)",
+    borderRadius:"12px",
+    fontSize:"14px",
+    fontWeight:"700",
+    fontFamily:"'DM Sans',sans-serif",
+    cursor:"pointer",
+    width:"100%",
+    display:"flex",
+    alignItems:"center",
+    justifyContent:"center",
+    gap:"8px",
+    boxShadow:"0 4px 16px rgba(192,57,43,.4)"
+  }},["🚨  Аюул мэдээлэх"]);
+  hazardBtn.onclick=()=>{
+    // Мэдэгдэл бүртгэх
+    addHazardNotif("Аюул мэдэгдсэн","");
+    // Браузерт мэдэгдэл илгээх
+    if(Notification.permission==="granted"){
+      new Notification("🚨 ХАБЭА — Аюулын мэдэгдэл",{
+        body:"Ажилтан аюулын мэдэгдэл илгээж байна",
+        icon:"icon-192x192.png"
+      });
+    }
+    // Google Form нээх
+    window.open(HAZARD_FORM_URL,"_blank");
+  };
+  bw.appendChild(bs);bw.appendChild(hazardBtn);bw.appendChild(shareBtn);bw.appendChild(bm);inner.appendChild(bw);
   inner.appendChild(h("div",{style:{color:"rgba(255,255,255,.15)",fontSize:"11px",marginTop:"32px"}},["BEST SHOES LLC — ХАБЭА Цахим бүртгэл"]));
   page.appendChild(inner);app.appendChild(page);
   reqNotif().then(()=>startAlertTimer());
@@ -1749,6 +1815,18 @@ function renderManager(onLogout){
     const ht=h("div",{style:{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:"10px"}});
     ht.appendChild(h("div",{style:{display:"flex",alignItems:"center",gap:"8px"}},[brand(18,true),h("div",{style:{color:"rgba(255,255,255,.4)",fontSize:"10px",letterSpacing:".08em"}},["МЕНЕЖЕР"])]));
     const rfr=el("button",{style:{background:"rgba(255,255,255,.1)",border:"1px solid rgba(255,255,255,.15)",color:"#fff",borderRadius:"8px",padding:"6px 10px",cursor:"pointer",fontSize:"13px"}},["🔄"]);rfr.onclick=render;
+    // Аюулын мэдэгдэл badge
+    const _unread=getUnreadHazardCount();
+    if(_unread>0){
+      const hzBadge=el("button",{style:{
+        background:"#e74c3c",border:"none",color:"#fff",
+        borderRadius:"8px",padding:"6px 12px",cursor:"pointer",
+        fontSize:"12px",fontWeight:"700",fontFamily:"inherit",
+        display:"flex",alignItems:"center",gap:"4px",animation:"pulse 1.5s infinite"
+      }},["🚨 "+_unread]);
+      hzBadge.onclick=()=>{tab="dashboard";render();};
+      ht.appendChild(h("div",{style:{display:"flex",gap:"6px",alignItems:"center"}},[hzBadge]));
+    }
     const out=el("button",{style:{background:"#e74c3c",border:"none",color:"#fff",borderRadius:"8px",padding:"6px 12px",cursor:"pointer",fontSize:"12px",fontWeight:"700",fontFamily:"inherit"}},["← Гарах"]);
     out.onclick=()=>{clearInterval(rt);clearInterval(_stInterval);rt=null;onLogout();};
     ht.appendChild(h("div",{style:{display:"flex",gap:"6px"}},[rfr,out]));hdr.appendChild(ht);
@@ -1759,6 +1837,77 @@ function renderManager(onLogout){
 
     // ══════ DASHBOARD ══════
     if(tab==="dashboard"){
+
+      // 🚨 Аюулын мэдэгдэл хэсэг
+      const hazardNotifs=getHazardNotifs();
+      const unreadCount=hazardNotifs.filter(n=>!n.read).length;
+      if(hazardNotifs.length>0){
+        const hzCard=el("div",{className:"card fadeUp",style:{
+          borderColor:"#fca5a5",
+          background:unreadCount>0?"#fff5f5":"var(--wh)",
+          marginBottom:"12px"
+        }});
+        const hzHead=el("div",{style:{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:"10px"}});
+        const hzTitle=h("div",{style:{display:"flex",alignItems:"center",gap:"8px"}},[
+          h("span",{style:{fontSize:"18px"}},["🚨"]),
+          h("div",{style:{fontFamily:"'DM Serif Display',serif",fontSize:"14px",color:"#c0392b"}},["Аюулын мэдэгдэл"]),
+          unreadCount>0?h("span",{style:{
+            background:"#e74c3c",color:"#fff",
+            borderRadius:"20px",padding:"2px 8px",
+            fontSize:"11px",fontWeight:"700"
+          }},[String(unreadCount)+" шинэ"]):h("span",{},[])
+        ]);
+        // Responses sheet нээх товч
+        const hzViewBtn=el("button",{className:"btn btn-sm",style:{
+          background:"#c0392b",color:"#fff",border:"none",
+          borderRadius:"8px",padding:"7px 14px",
+          fontSize:"12px",fontWeight:"700",cursor:"pointer",fontFamily:"inherit",
+          display:"flex",alignItems:"center",gap:"6px"
+        }},["📊 Хариулт харах →"]);
+        hzViewBtn.onclick=()=>{
+          markHazardNotifsRead();
+          window.open(HAZARD_RESPONSES_URL,"_blank");
+          render();
+        };
+        hzHead.appendChild(hzTitle);hzHead.appendChild(hzViewBtn);hzCard.appendChild(hzHead);
+
+        // Мэдэгдлийн жагсаалт
+        hazardNotifs.slice(0,5).forEach(n=>{
+          const nRow=el("div",{style:{
+            display:"flex",alignItems:"center",justifyContent:"space-between",
+            padding:"8px 10px",borderRadius:"8px",marginBottom:"4px",
+            background:n.read?"var(--gp)":"#fef2f2",
+            border:"1px solid "+(n.read?"var(--bdr)":"#fca5a5")
+          }});
+          nRow.appendChild(h("div",{style:{display:"flex",alignItems:"center",gap:"8px"}},[
+            h("span",{style:{fontSize:"14px"}},[n.read?"⚠️":"🆕"]),
+            h("div",{},[
+              h("div",{style:{fontSize:"12px",fontWeight:"700",color:n.read?"var(--ink)":"#c0392b"}},[n.name]),
+              h("div",{style:{fontSize:"11px",color:"var(--mut)"}},[n.date+" "+n.time+(n.dept?" · "+n.dept:"")])
+            ])
+          ]));
+          if(!n.read){
+            nRow.appendChild(el("div",{className:"badge bg-r"},["Шинэ"]));
+          }
+          hzCard.appendChild(nRow);
+        });
+
+        if(hazardNotifs.length>5){
+          hzCard.appendChild(h("div",{style:{fontSize:"11px",color:"var(--mut)",textAlign:"center",marginTop:"4px"}},[
+            "Нийт "+hazardNotifs.length+" мэдэгдэл"
+          ]));
+        }
+
+        // Бүгдийг уншсан болгох
+        if(unreadCount>0){
+          const markBtn=el("button",{className:"btn btn-o btn-sm",style:{marginTop:"8px",width:"100%"}},["✓ Бүгдийг уншсан болгох"]);
+          markBtn.onclick=()=>{markHazardNotifsRead();render();};
+          hzCard.appendChild(markBtn);
+        }
+
+        body.appendChild(hzCard);
+      }
+
       body.appendChild(h("div",{style:{fontSize:"12px",color:"var(--mut)",marginBottom:"14px"}},["📅 "+toDay()+" өдрийн байдал"]));
       const DEPTS_LIST=["Гүйцэтгэл","Оёдол","Эсгүүр","Гоёл","Санхүү","Захиргаа"];
       const deptStats=DEPTS_LIST.map(dept=>{
