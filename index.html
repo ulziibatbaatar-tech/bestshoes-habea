@@ -170,9 +170,7 @@ body{font-family:'DM Sans',sans-serif;background:var(--gp);color:var(--ink);min-
 // ════════════════════════════════════════════════════════════
 const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbygQOi-y76ikqCXkAfzNF9hnnS5C3JsxL6mlFdA1vPdI6mfmrejOXIcZncFouLB1izo/exec";
 const SHEET_URL  = "https://docs.google.com/spreadsheets/d/1OB8ejIU4RxtuyelQpQVT5PSL6aWWt2gJbx9lo8dhTaU/edit";
-const APP_VERSION = "v20260527"; // Deploy хийх бүрт өдрийн тоо өөрчлөх
 const APP_URL    = "https://ulziibatbaatar-tech.github.io/bestshoes-habea/";
-const APP_URL_VERSIONED = APP_URL + "?v=" + APP_VERSION;
 const ALERT_HOUR = 9, ALERT_MIN = 15;
 const HAZARD_FORM_URL = "https://docs.google.com/forms/d/e/1FAIpQLSdISoAU5VIJUJBfglhL7XJPm0UehKk83x7Tca6o-iRX50R8yg/viewform";
 const HAZARD_RESPONSES_URL = "https://docs.google.com/spreadsheets/d/1rQceNzFbJiXu6SmzwuibMQ3VIcP0OSgz4TZYpKuaZ8w/edit";
@@ -1111,12 +1109,12 @@ function renderHome(){
   shareBtn.onclick=()=>renderShare();
   const bm=el("button",{className:"btn-ghost"},["🛡️  Менежерийн хяналт"]);
   bm.onclick=()=>renderPin(()=>renderManager(renderHome),renderHome);
-  // 🚨 Аюул мэдээлэх товч
+  // 🚨 Аюул мэдээлэх товч — мобайл Safari-д touchend ашиглах
   const hazardBtn=el("button",{style:{
     padding:"14px",
-    background:"linear-gradient(135deg,#c0392b,#922b21)",
+    background:"#c0392b",
     color:"#fff",
-    border:"1px solid rgba(255,100,100,.3)",
+    border:"none",
     borderRadius:"12px",
     fontSize:"14px",
     fontWeight:"700",
@@ -1127,21 +1125,29 @@ function renderHome(){
     alignItems:"center",
     justifyContent:"center",
     gap:"8px",
-    boxShadow:"0 4px 16px rgba(192,57,43,.4)"
+    WebkitAppearance:"none",
+    appearance:"none",
+    touchAction:"manipulation"
   }},["🚨  Аюул мэдээлэх"]);
-  hazardBtn.onclick=()=>{
-    // Мэдэгдэл бүртгэх
+
+  function _doHazard(){
     addHazardNotif("Аюул мэдэгдсэн","");
-    // Браузерт мэдэгдэл илгээх
     if(Notification.permission==="granted"){
-      new Notification("🚨 ХАБЭА — Аюулын мэдэгдэл",{
+      try{new Notification("🚨 ХАБЭА — Аюулын мэдэгдэл",{
         body:"Ажилтан аюулын мэдэгдэл илгээж байна",
         icon:"icon-192x192.png"
-      });
+      });}catch(e){}
     }
-    // Google Form нээх — мобайл Safari/Chrome popup blocker тойрч шууд redirect
     window.location.href = HAZARD_FORM_URL;
-  };
+  }
+  // onclick + touchend хоёуланг нэмэх (iOS Safari-д onclick удаашралтай)
+  hazardBtn.addEventListener("touchend", function(e){
+    e.preventDefault();
+    _doHazard();
+  }, {passive:false});
+  hazardBtn.addEventListener("click", function(e){
+    _doHazard();
+  });
   bw.appendChild(bs);bw.appendChild(hazardBtn);bw.appendChild(shareBtn);bw.appendChild(bm);inner.appendChild(bw);
   inner.appendChild(h("div",{style:{color:"rgba(255,255,255,.15)",fontSize:"11px",marginTop:"32px"}},["BEST SHOES LLC — ХАБЭА Цахим бүртгэл"]));
   page.appendChild(inner);app.appendChild(page);
@@ -1249,20 +1255,20 @@ function renderShare(){
   logoRow.innerHTML=`<span style="font-family:'DM Serif Display',serif;font-size:13px;color:#2ecc71;font-weight:700">BEST</span><span style="font-family:'DM Serif Display',serif;font-size:13px;color:#1a6a3a;font-weight:700">SHOES</span><span style="font-size:10px;color:#6b8f71;margin-left:4px;font-weight:600;letter-spacing:.08em">ХАБЭА</span>`;
   qrCard.appendChild(logoRow);
   const qrWrap=el("div",{style:{position:"relative",display:"inline-block",margin:"0 auto 16px"}});
-  const qrImg=el("img",{src:`https://api.qrserver.com/v1/create-qr-code/?size=200x200&color=0d3a1f&bgcolor=ffffff&data=${encodeURIComponent(APP_URL_VERSIONED)}&qzone=2`,style:{width:"200px",height:"200px",display:"block",borderRadius:"12px"}});
+  const qrImg=el("img",{src:`https://api.qrserver.com/v1/create-qr-code/?size=200x200&color=0d3a1f&bgcolor=ffffff&data=${encodeURIComponent(APP_URL)}&qzone=2`,style:{width:"200px",height:"200px",display:"block",borderRadius:"12px"}});
   const qrLogo=el("div",{style:{position:"absolute",top:"50%",left:"50%",transform:"translate(-50%,-50%)",width:"36px",height:"36px",background:"#1a6a3a",borderRadius:"8px",display:"flex",alignItems:"center",justifyContent:"center",boxShadow:"0 2px 8px rgba(0,0,0,.3)"}});
   qrLogo.innerHTML=`<span style="color:#2ecc71;font-family:'DM Serif Display',serif;font-size:14px;font-weight:700">B</span>`;
   qrWrap.appendChild(qrImg);qrWrap.appendChild(qrLogo);qrCard.appendChild(qrWrap);
   qrCard.appendChild(h("div",{style:{fontSize:"12px",color:"#6b8f71",fontWeight:"600",letterSpacing:".05em",marginBottom:"12px"}},["📱 Камераар уншуулна уу"]));
   qrCard.appendChild(el("div",{style:{height:"1px",background:"linear-gradient(90deg,transparent,#c8e6d0,transparent)",margin:"4px 0 12px"}}));
   const urlBox=el("div",{style:{background:"#f0fdf4",borderRadius:"10px",padding:"8px 12px",fontSize:"11px",color:"#1a6a3a",fontWeight:"700",cursor:"pointer",wordBreak:"break-all",border:"1px solid #c8e6d0",display:"flex",alignItems:"center",gap:"6px",justifyContent:"center"}});
-  urlBox.innerHTML=`<span style="font-size:13px">🔗</span><span style="flex:1;text-align:left;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${APP_URL_VERSIONED}</span><span style="font-size:11px;opacity:.6;flex-shrink:0">хуулах</span>`;
-  urlBox.onclick=()=>{navigator.clipboard.writeText(APP_URL_VERSIONED).then(()=>toast("Холбоос хуулагдлаа ✓")).catch(()=>toast("Гараар хуулна уу","info"));};
+  urlBox.innerHTML=`<span style="font-size:13px">🔗</span><span style="flex:1;text-align:left;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${APP_URL}</span><span style="font-size:11px;opacity:.6;flex-shrink:0">хуулах</span>`;
+  urlBox.onclick=()=>{navigator.clipboard.writeText(APP_URL).then(()=>toast("Холбоос хуулагдлаа ✓")).catch(()=>toast("Гараар хуулна уу","info"));};
   qrCard.appendChild(urlBox);page.appendChild(qrCard);
   const btnWrap=el("div",{className:"fadeUp",style:{width:"100%",maxWidth:"300px",display:"flex",flexDirection:"column",gap:"10px"}});
   if(navigator.share){
     const sb=el("button",{style:{width:"100%",padding:"14px",background:"rgba(255,255,255,.15)",color:"#fff",border:"1px solid rgba(255,255,255,.3)",borderRadius:"14px",fontSize:"14px",fontWeight:"700",fontFamily:"'DM Sans',sans-serif",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:"8px"}},["📤  Мессенжерээр илгээх"]);
-    sb.onclick=()=>navigator.share({title:"BEST SHOES ХАБЭА",text:"ХАБЭА бүртгэлийн систем",url:APP_URL_VERSIONED}).catch(()=>{});
+    sb.onclick=()=>navigator.share({title:"BEST SHOES ХАБЭА",text:"ХАБЭА бүртгэлийн систем",url:APP_URL}).catch(()=>{});
     btnWrap.appendChild(sb);
   }
   const backBtn=el("button",{style:{width:"100%",padding:"13px",background:"transparent",color:"rgba(255,255,255,.6)",border:"1px solid rgba(255,255,255,.15)",borderRadius:"14px",fontSize:"14px",fontWeight:"600",fontFamily:"'DM Sans',sans-serif",cursor:"pointer"}},["← Буцах"]);
