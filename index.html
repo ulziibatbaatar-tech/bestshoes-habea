@@ -1065,6 +1065,59 @@ function renderMgrCell(cell,sig,name){
 
 
 // ════════════════════════════════════════════════════════════
+// 🚨 АЮУЛЫН МЭДЭГДЭЛ — Polling
+// ════════════════════════════════════════════════════════════
+let _hazardPollInterval = null;
+let _lastHazardCheck = Date.now() - 60000; // 1 минут өмнөөс эхлэнэ
+
+function startHazardPolling(){
+  if(_hazardPollInterval) return; // Аль хэдийн ажиллаж байна
+  // Эхний шалгалт 5 секундын дараа
+  setTimeout(pollHazards, 5000);
+  // 30 секунд тутам давтана
+  _hazardPollInterval = setInterval(pollHazards, 30000);
+}
+
+async function pollHazards(){
+  try{
+    const res = await getFromSheets({action:"getHazards", lastCheck:_lastHazardCheck});
+    if(!res||!res.ok||!Array.isArray(res.hazards))return;
+    if(!res.hazards.length){ _lastHazardCheck=Date.now(); return; }
+
+    // Шинэ аюулын мэдэгдэл ирлээ
+    res.hazards.forEach(hz=>{
+      // LocalStorage-д хадгалах
+      const notifs=getHazardNotifs();
+      const exists=notifs.find(n=>n.id===hz.id);
+      if(!exists){
+        notifs.unshift({
+          id: hz.id,
+          name: hz.name||"Аюул мэдэгдсэн",
+          dept: hz.location||"",
+          hazard: hz.hazard||"",
+          time: hz.timestamp||toNow(),
+          date: toDay(),
+          read: false
+        });
+        if(notifs.length>20) notifs.splice(20);
+        saveHazardNotifs(notifs);
+
+        // Браузерт мэдэгдэл
+        if(Notification.permission==="granted"){
+          try{
+            new Notification("🚨 ХАБЭА — Аюулын мэдэгдэл",{
+              body: (hz.name||"Ажилтан")+" аюул мэдэгдлээ"+(hz.location?" ("+hz.location+")":""),
+              icon:"icon-192x192.png"
+            });
+          }catch(e){}
+        }
+      }
+    });
+    _lastHazardCheck = Date.now();
+  }catch(e){}
+}
+
+// ════════════════════════════════════════════════════════════
 // 🚨 АЮУЛЫН МЭДЭГДЭЛ
 // ════════════════════════════════════════════════════════════
 function getHazardNotifs(){ return lsGet(HAZARD_NOTIF_KEY)||[]; }
@@ -1110,7 +1163,8 @@ function renderHome(){
   const bm=el("button",{className:"btn-ghost"},["🛡️  Менежерийн хяналт"]);
   bm.onclick=()=>renderPin(()=>renderManager(renderHome),renderHome);
   // 🚨 Аюул мэдээлэх товч — мобайл Safari-д touchend ашиглах
-  const hazardBtn=el("button",{style:{
+  // <a> tag — мобайл Safari/Chrome хоёуланд найдвартай ажилладаг
+  const hazardBtn=el("a",{style:{
     padding:"14px",
     background:"#c0392b",
     color:"#fff",
@@ -1125,12 +1179,14 @@ function renderHome(){
     alignItems:"center",
     justifyContent:"center",
     gap:"8px",
-    WebkitAppearance:"none",
-    appearance:"none",
-    touchAction:"manipulation"
+    textDecoration:"none",
+    WebkitTapHighlightColor:"rgba(0,0,0,0)"
   }},["🚨  Аюул мэдээлэх"]);
+  hazardBtn.href = HAZARD_FORM_URL;
+  hazardBtn.target = "_blank";
+  hazardBtn.rel = "noopener";
 
-  function _doHazard(){
+  hazardBtn.addEventListener("click", function(){
     addHazardNotif("Аюул мэдэгдсэн","");
     if(Notification.permission==="granted"){
       try{new Notification("🚨 ХАБЭА — Аюулын мэдэгдэл",{
@@ -1138,25 +1194,20 @@ function renderHome(){
         icon:"icon-192x192.png"
       });}catch(e){}
     }
-    window.location.href = HAZARD_FORM_URL;
-  }
-  // onclick + touchend хоёуланг нэмэх (iOS Safari-д onclick удаашралтай)
-  hazardBtn.addEventListener("touchend", function(e){
-    e.preventDefault();
-    _doHazard();
-  }, {passive:false});
-  hazardBtn.addEventListener("click", function(e){
-    _doHazard();
   });
+  // <a> tag болгох — мобайл Safari-д хамгийн найдвартай
+  hazardBtn.onclick = null;
   bw.appendChild(bs);bw.appendChild(hazardBtn);bw.appendChild(shareBtn);bw.appendChild(bm);inner.appendChild(bw);
   inner.appendChild(h("div",{style:{color:"rgba(255,255,255,.15)",fontSize:"11px",marginTop:"32px"}},["BEST SHOES LLC — ХАБЭА Цахим бүртгэл"]));
   page.appendChild(inner);app.appendChild(page);
   reqNotif().then(()=>startAlertTimer());
   setTimeout(flushQueue,2000);
   setTimeout(pruneOldSignatures,1000);
-  setTimeout(fixLocalStorageTimes,1200); // Хуучин буруу цагийг нэг удаа засна
+  setTimeout(fixLocalStorageTimes,1200);
   setTimeout(pruneNewWorkers,1500);
-  setTimeout(pruneBlacklist,2000); // 72 цагийн дараа устгагдсан ажилтнуудыг цэвэрлэх
+  setTimeout(pruneBlacklist,2000);
+  // 🚨 Аюулын мэдэгдэл polling — 30 секунд тутам шалгана
+  startHazardPolling(); // 72 цагийн дараа устгагдсан ажилтнуудыг цэвэрлэх
   // Sheets-ийн ажилтны жагсаалтыг татаж LocalStorage-тай нэгтгэнэ
   // Тасаг, тушаал, утас гэх мэт мэдээлэл өөрчлөгдсөн бол шинэчилнэ
   fetchWorkersFromSheets().then(ws=>{
