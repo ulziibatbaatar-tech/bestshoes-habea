@@ -499,7 +499,7 @@ function mergeRecords(local,remote){
     const s=String(t).trim();
     if(!/^\d{1,2}:\d{2}$/.test(s))return false;
     const h=parseInt(s.split(":")[0]);
-    return h>=7&&h<=18; // Ажлын цаг
+    return h>=8&&h<=19; // Ажлын цаг 08:00-19:00
   }
 
   // UTC→UB засвар хийх
@@ -509,7 +509,8 @@ function mergeRecords(local,remote){
     if(!/^\d{1,2}:\d{2}$/.test(s))return t;
     const h=parseInt(s.split(":")[0]);
     const m=s.split(":")[1];
-    if(h>=0&&h<=6){
+    if(h>=0&&h<=7){
+      // UTC+0 эсвэл UTC+1 цаг → +8 нэмж UB болгох
       const ubH=(h+8)%24;
       return String(ubH).padStart(2,"0")+":"+m;
     }
@@ -595,11 +596,11 @@ function pruneOldSignatures(){
         if(t.includes("1899")){r.time=safeTime(t);changed=true;}
         // "HH:MM:SS" → "HH:MM"
         else if(/^\d{1,2}:\d{2}:\d{2}$/.test(t)){r.time=t.substring(0,5);changed=true;}
-        // 00:xx-06:xx буруу UTC цаг → +8 нэмж UB болгох
+        // 00:xx-07:xx буруу UTC цаг → +8 нэмж UB болгох
         else if(/^\d{2}:\d{2}$/.test(t)){
           const h=parseInt(t.split(":")[0]);
           const m=t.split(":")[1];
-          if(h>=0&&h<=6){
+          if(h>=0&&h<=7){
             const ubH=(h+8)%24;
             r.time=String(ubH).padStart(2,"0")+":"+m;
             changed=true;
@@ -613,7 +614,7 @@ function pruneOldSignatures(){
 
 // Хуучин буруу цагийг нэг удаа засах (LocalStorage migration)
 function fixLocalStorageTimes(){
-  const KEY="habea_time_fixed_v3"; // v3 — дахин ажиллуулна
+  const KEY="habea_time_fixed_v4"; // v4 — 07 цагийн засвар
   if(localStorage.getItem(KEY))return;
   try{
     const recs=getRecs();
@@ -624,8 +625,8 @@ function fixLocalStorageTimes(){
       if(/^\d{1,2}:\d{2}$/.test(t)){
         const h=parseInt(t.split(":")[0]);
         const m=t.split(":")[1];
-        // 00:00-06:59 → UTC цаг → +8 нэмж UB болгох
-        if(h>=0&&h<=6){
+        // 00:00-07:59 → UTC цаг → +8 нэмж UB болгох
+        if(h>=0&&h<=7){
           const ubH=(h+8)%24;
           r.time=String(ubH).padStart(2,"0")+":"+m;
           fixed++;
@@ -1978,12 +1979,23 @@ function renderManager(onLogout){
           ]));
         }
 
-        // Бүгдийг уншсан болгох
+        // Үйлдлийн товчнууд
+        const hzActRow=el("div",{style:{display:"flex",gap:"6px",marginTop:"8px"}});
         if(unreadCount>0){
-          const markBtn=el("button",{className:"btn btn-o btn-sm",style:{marginTop:"8px",width:"100%"}},["✓ Бүгдийг уншсан болгох"]);
+          const markBtn=el("button",{className:"btn btn-o btn-sm",style:{flex:"1"}},["✓ Уншсан болгох"]);
           markBtn.onclick=()=>{markHazardNotifsRead();render();};
-          hzCard.appendChild(markBtn);
+          hzActRow.appendChild(markBtn);
         }
+        // Бүгдийг арилгах товч — үргэлж харагдана
+        const clearBtn=el("button",{className:"btn btn-d btn-sm",style:{flex:"1"}},["🗑️ Бүгдийг арилгах"]);
+        clearBtn.onclick=()=>{
+          if(!confirm("Аюулын бүх мэдэгдлийг арилгах уу?"))return;
+          saveHazardNotifs([]);
+          render();
+          toast("Аюулын мэдэгдлүүд арилгагдлаа ✓");
+        };
+        hzActRow.appendChild(clearBtn);
+        hzCard.appendChild(hzActRow);
 
         body.appendChild(hzCard);
       }
