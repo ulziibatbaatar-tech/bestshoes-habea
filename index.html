@@ -1172,10 +1172,46 @@ function renderHome(){
   const inner=h("div",{className:"home-inner fadeUp"});
   inner.appendChild(brand(48,true));
   inner.appendChild(h("div",{style:{textAlign:"center",color:"rgba(255,255,255,.4)",fontSize:"10px",letterSpacing:".18em",textTransform:"uppercase",marginTop:"4px"}},["ХАБЭА бүртгэлийн систем"]));
+
+  // ⏰ Цагийн дэлгэц — нүүр хуудасны цаг
+  const clockDiv=el("div",{style:{
+    textAlign:"center",marginTop:"12px",
+    background:"rgba(0,0,0,.25)",
+    borderRadius:"16px",padding:"10px 20px",
+    border:"1px solid rgba(255,255,255,.1)"
+  }});
+  const clockTime=el("div",{style:{
+    fontFamily:"'DM Serif Display',serif",
+    fontSize:"42px",color:"#fff",
+    letterSpacing:"2px",lineHeight:"1"
+  }},["--:--"]);
+  const clockDate=el("div",{style:{
+    fontSize:"11px",color:"rgba(255,255,255,.5)",
+    marginTop:"4px",letterSpacing:".08em"
+  }},["..."]);
+  clockDiv.appendChild(clockTime);
+  clockDiv.appendChild(clockDate);
+  inner.appendChild(clockDiv);
+
+  // Цагийг шинэчлэх — 1 секунд тутам
+  function updateClock(){
+    const s=new Date().toLocaleString("sv-SE",{timeZone:"Asia/Ulaanbaatar"});
+    const [datePart,timePart]=s.split(" ");
+    const [y,mo,d]=datePart.split("-");
+    const [hh,mm,ss]=timePart.split(":");
+    clockTime.textContent=hh+":"+mm+":"+ss;
+    clockDate.textContent=y+"."+mo+"."+d+" · Улаанбаатар";
+  }
+  updateClock();
+  const _clockInterval=setInterval(updateClock,1000);
+
   inner.appendChild(h("div",{className:"home-div"}));
   const bw=h("div",{style:{display:"flex",flexDirection:"column",gap:"10px",width:"100%"}});
   const bs=el("button",{className:"btn btn-p",style:{fontSize:"16px",padding:"16px"}},["✍️  Гарын үсэг зурах"]);
-  bs.onclick=()=>renderWorkerForm(rec=>renderSuccess(rec,renderHome),renderHome);
+  bs.onclick=()=>{
+    clearInterval(_clockInterval);
+    renderWorkerForm(rec=>renderSuccess(rec,renderHome),renderHome);
+  };
   const shareBtn=el("button",{style:{padding:"12px",background:"rgba(255,255,255,.08)",color:"rgba(255,255,255,.7)",border:"1px solid rgba(255,255,255,.2)",borderRadius:"12px",fontSize:"13px",fontWeight:"700",fontFamily:"'DM Sans',sans-serif",cursor:"pointer",width:"100%",display:"flex",alignItems:"center",justifyContent:"center",gap:"8px"}},["📲  Апп хуваалцах"]);
   shareBtn.onclick=()=>renderShare();
   const bm=el("button",{className:"btn-ghost"},["🛡️  Менежерийн хяналт"]);
@@ -1753,8 +1789,10 @@ function renderWorkerForm(onDone,onBack){
         sigCtx.save();sigCtx.globalAlpha=0.22;sigCtx.fillStyle="#1a6a3a";sigCtx.font="bold 11px sans-serif";
         sigCtx.fillText(state.name.trim()+" | "+toDay(),6,sigCanvas.height-6);sigCtx.restore();
       }
-      // Цаг: гарын үсэг зурж буй БОДИТ цаг (LocalStorage-ийн хуучин утгаас үл хамаарна)
-      const _signTime=toNow();
+      // Цаг: гарын үсэг зурж буй БОДИТ Улаанбаатарын цаг
+      // sv-SE locale → timezone-с үл хамаарч үргэлж зөв
+      const _s2=new Date().toLocaleString("sv-SE",{timeZone:"Asia/Ulaanbaatar"});
+      const _signTime=_s2.split(" ")[1].substring(0,5); // "HH:MM"
       const rec={name:state.name.trim(),department:state.department.trim(),position:state.position.trim(),phone:state.phone.trim(),date:toDay(),time:_signTime,passed,instrRead:state.instrRead,checkedCount:state.checked.size,signature:(()=>{const _tc=document.createElement("canvas");_tc.width=sigCanvas.width;_tc.height=sigCanvas.height;const _tx=_tc.getContext("2d");_tx.fillStyle="#ffffff";_tx.fillRect(0,0,_tc.width,_tc.height);_tx.drawImage(sigCanvas,0,0);return _tc.toDataURL("image/jpeg",0.8);})()};
       const recs=getRecs();recs.push(rec);saveRecs(recs);
       // Утасны дугаар шинэчлэгдэх (байгаа ажилтанд), шинэ ажилтан нэмэх
