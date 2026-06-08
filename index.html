@@ -2148,17 +2148,40 @@ function renderManager(onLogout){
       const topRow=h("div",{style:{display:"flex",alignItems:"center",gap:"8px",marginBottom:"12px",flexWrap:"wrap"}});
       const di=el("input",{className:"inp",style:{maxWidth:"160px"},type:"date",value:mnToISO(selDate)});
       di.onchange=()=>{if(di.value){selDate=isoToMn(di.value);render();}};
-      const rsb=el("button",{className:"btn btn-o btn-sm"},["🔄 Sheets синк"]);
-      rsb.onclick=async()=>{rsb.disabled=true;rsb.textContent="...";await syncFromSheets(selDate);rsb.textContent="✓";setTimeout(()=>render(),400);};
       topRow.appendChild(h("div",{style:{fontSize:"12px",color:"var(--mut)",fontWeight:"700"}},["📅 Огноо:"]));
-      topRow.appendChild(di);topRow.appendChild(rsb);
+      topRow.appendChild(di);
       body.appendChild(topRow);
 
-      // LocalStorage-аас тухайн өдрийн бүртгэл авах
-      const dateRecs=getRecs().filter(r=>r.date===selDate);
+      // ── Sheets-ээс шууд татаж харуулах ──
+      const loadingDiv=el("div",{className:"sync-bar fadeUp"});
+      loadingDiv.innerHTML='<span class="spin">🔄</span> Sheets-ээс татаж байна...';
+      body.appendChild(loadingDiv);
 
-      // ── Дэлгэрэнгүй тайланг render хийх ──
-      buildDetailReport(body, selDate, dateRecs);
+      // Sheets-ээс татаж тайлан үүсгэх
+      fetchTodayFromSheets(selDate).then(remote=>{
+        loadingDiv.remove();
+
+        // Sheets-ийн өгөгдлийг LocalStorage-тай нэгтгэх
+        // Гэхдээ Sheets-ийн цаг ҮРГЭЛЖ давуу (Apps Script UB цаг авдаг)
+        if(remote.length>0){
+          const local=getRecs();
+          const merged=mergeRecords(local,remote);
+          saveRecs(merged);
+        }
+
+        // Sheets-ийн өгөгдлийг ШУУД ашиглах
+        const sheetsRecs=remote.length>0
+          ? remote  // Sheets-д байгаа зөв цагтай өгөгдөл
+          : getRecs().filter(r=>r.date===selDate); // Offline бол LocalStorage
+
+        buildDetailReport(body, selDate, sheetsRecs);
+      }).catch(()=>{
+        loadingDiv.remove();
+        // Offline бол LocalStorage-аас
+        const dateRecs=getRecs().filter(r=>r.date===selDate);
+        body.appendChild(h("div",{className:"n-banner"},["📴 Offline — LocalStorage-аас харуулж байна"]));
+        buildDetailReport(body, selDate, dateRecs);
+      });
     }
 
     // ══════ WORKERS ══════
