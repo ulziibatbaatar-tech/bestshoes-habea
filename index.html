@@ -536,15 +536,9 @@ function mergeRecords(local,remote){
     seen.add(key);
     const loc=localMap[key];
     if(loc){
-      let bestTime=r.time;
-      const remoteGood=isGoodTime(r.time);
-      const localGood=isGoodTime(loc.time);
-      // Local зөв цаг байвал ҮРГЭЛЖ local давуу
-      // Remote буруу UTC цаг байвал local авна
-      if(localGood&&!remoteGood) bestTime=loc.time;
-      else if(remoteGood&&!localGood) bestTime=r.time;
-      else if(localGood&&remoteGood) bestTime=loc.time; // ХОЁУЛАА ЗӨВ → LOCAL ДАВУУ
-      else bestTime=loc.time||r.time;
+      // Apps Script ҮРГЭЛЖ зөв UB цаг хадгалдаг болсон тул
+      // SHEETS (remote) цаг ҮРГЭЛЖ давуу
+      const bestTime=r.time||loc.time;
       merged.push({...r,time:bestTime,signature:loc.signature||r.signature||"signed"});
     }else{
       merged.push(r);
@@ -614,7 +608,7 @@ function pruneOldSignatures(){
 
 // Хуучин буруу цагийг нэг удаа засах (LocalStorage migration)
 function fixLocalStorageTimes(){
-  const KEY="habea_time_fixed_v4"; // v4 — 07 цагийн засвар
+  const KEY="habea_time_fixed_v5"; // v5 — Sheets давуу болгосон
   if(localStorage.getItem(KEY))return;
   try{
     const recs=getRecs();
@@ -1251,7 +1245,25 @@ function renderHome(){
   });
   // <a> tag болгох — мобайл Safari-д хамгийн найдвартай
   hazardBtn.onclick = null;
-  bw.appendChild(bs);bw.appendChild(hazardBtn);bw.appendChild(shareBtn);bw.appendChild(bm);inner.appendChild(bw);
+  // 🏭 Зочдод өгөх зааварчилгаа товч
+  const visitorBtn=el("button",{style:{
+    padding:"14px",
+    background:"rgba(255,255,255,.08)",
+    color:"rgba(255,255,255,.85)",
+    border:"1px solid rgba(255,255,255,.25)",
+    borderRadius:"12px",
+    fontSize:"14px",
+    fontWeight:"700",
+    fontFamily:"'DM Sans',sans-serif",
+    cursor:"pointer",
+    width:"100%",
+    display:"flex",
+    alignItems:"center",
+    justifyContent:"center",
+    gap:"8px"
+  }},["🏭  Зочдод өгөх зааварчилгаа"]);
+  visitorBtn.onclick=()=>renderVisitorGuide();
+  bw.appendChild(bs);bw.appendChild(hazardBtn);bw.appendChild(visitorBtn);bw.appendChild(shareBtn);bw.appendChild(bm);inner.appendChild(bw);
   inner.appendChild(h("div",{style:{color:"rgba(255,255,255,.15)",fontSize:"11px",marginTop:"32px"}},["BEST SHOES LLC — ХАБЭА Цахим бүртгэл"]));
   page.appendChild(inner);app.appendChild(page);
   reqNotif().then(()=>startAlertTimer());
@@ -1264,6 +1276,15 @@ function renderHome(){
   startHazardPolling(); // 72 цагийн дараа устгагдсан ажилтнуудыг цэвэрлэх
   // Sheets-ийн ажилтны жагсаалтыг татаж LocalStorage-тай нэгтгэнэ
   // Тасаг, тушаал, утас гэх мэт мэдээлэл өөрчлөгдсөн бол шинэчилнэ
+  // Sheets-ээс өнөөдрийн бүртгэлийг татаж LocalStorage-г шинэчлэх
+  // Apps Script ҮРГЭЛЖ зөв UB цаг хадгалдаг → Sheets цаг давуу
+  fetchTodayFromSheets(toDay()).then(remote=>{
+    if(!remote||!remote.length)return;
+    const local=getRecs();
+    const merged=mergeRecords(local,remote);
+    saveRecs(merged);
+  }).catch(()=>{});
+
   fetchWorkersFromSheets().then(ws=>{
     if(!ws||!ws.length)return;
     const local=getWrks();
@@ -1273,12 +1294,10 @@ function renderHome(){
     let changed=false;
     ws.forEach(w=>{
       const key=normName(w.name);
-      if(bl.has(key))return; // Хар жагсаалтад байвал алгасна
+      if(bl.has(key))return;
       if(!localMap[key]){
-        // Шинэ ажилтан — нэмнэ
         local.push(w);localMap[key]=w;changed=true;
       }else{
-        // Байгаа ажилтан — тасаг/тушаал/утас шинэчилнэ (Sheets давуу)
         const lw=localMap[key];
         if(w.department&&lw.department!==w.department){lw.department=w.department;changed=true;}
         if(w.position&&lw.position!==w.position){lw.position=w.position;changed=true;}
@@ -1288,6 +1307,254 @@ function renderHome(){
     if(changed)saveWrks(local);
   }).catch(()=>{});
 }
+
+
+// ════════════════════════════════════════════════════════════
+// 🏭 ЗОЧДОД ӨГӨХ ЗААВАРЧИЛГАА
+// ════════════════════════════════════════════════════════════
+const VISITOR_KEY = "habea_visitor_logs_v1";
+function getVisitorLogs(){ return lsGet(VISITOR_KEY)||[]; }
+function saveVisitorLogs(v){ lsSet(VISITOR_KEY,v); }
+
+function renderVisitorGuide(){
+  const app=document.getElementById("app");app.innerHTML="";
+  const page=el("div",{className:"page",style:{background:"var(--gp)"}});
+
+  // Header
+  const hdr=h("div",{style:{
+    background:"linear-gradient(135deg,var(--gd),var(--g))",
+    padding:"14px 16px",display:"flex",alignItems:"center",justifyContent:"space-between"
+  }});
+  const bb=el("button",{style:{
+    background:"rgba(255,255,255,.1)",border:"1px solid rgba(255,255,255,.2)",
+    color:"#fff",borderRadius:"8px",padding:"6px 12px",
+    cursor:"pointer",fontSize:"13px",fontFamily:"inherit"
+  }},["← Буцах"]);
+  bb.onclick=()=>renderHome();
+  hdr.appendChild(bb);
+  hdr.appendChild(h("div",{style:{
+    fontFamily:"'DM Serif Display',serif",fontSize:"15px",
+    color:"#fff",textAlign:"center",flex:"1"
+  }},["🏭 ХАБЭА Зааварчилгаа"]));
+  hdr.appendChild(h("div",{style:{width:"60px"}}));
+  page.appendChild(hdr);
+
+  const wrap=h("div",{style:{maxWidth:"560px",margin:"0 auto",padding:"16px 16px 100px"}});
+
+  // Гарчиг карт
+  const titleCard=el("div",{style:{
+    background:"linear-gradient(135deg,var(--gd),var(--g))",
+    borderRadius:"16px",padding:"20px",marginBottom:"14px",
+    textAlign:"center",position:"relative",overflow:"hidden"
+  }});
+  titleCard.innerHTML=`
+    <div style="position:absolute;bottom:-15px;right:-10px;font-family:'DM Serif Display',serif;font-size:80px;color:rgba(255,255,255,.04);pointer-events:none">BEST SHOES</div>
+    <div style="position:relative;z-index:1">
+      <div style="font-size:32px;margin-bottom:8px">🏭</div>
+      <div style="font-family:'DM Serif Display',serif;font-size:17px;color:#fff;margin-bottom:4px">ГУТЛЫН ҮЙЛДВЭРТ ЗОЧЛОГЧДОД</div>
+      <div style="font-family:'DM Serif Display',serif;font-size:17px;color:var(--gl)">ӨГӨХ ХАБЭА-Н ЗААВАРЧИЛГАА</div>
+      <div style="color:rgba(255,255,255,.5);font-size:11px;margin-top:8px;letter-spacing:.1em">BEST SHOES LLC · АЮУЛГҮЙ АЖИЛЛАГАА</div>
+    </div>`;
+  wrap.appendChild(titleCard);
+
+  // Зааварчилгааны хэсгүүд
+  const sections=[
+    {ico:"🎯",title:"1. Зорилго",content:"Энэхүү зааварчилгааны зорилго нь гутлын үйлдвэрийн үйл ажиллагаатай танилцах хугацаанд зочдын аюулгүй байдлыг хангах, осол гэмтэл болон эрүүл мэндэд сөрөг нөлөөлөл үүсэхээс урьдчилан сэргийлэхэд оршино.",items:[]},
+    {ico:"📋",title:"2. Ерөнхий шаардлага",content:"",items:["Үйлдвэрийн ажилтан, хөтөчийн өгсөн зааварчилгааг чанд мөрдөнө","Зөвшөөрөгдсөн маршрутаар явж, тусгаарласан бүсэд нэвтрэхгүй","Үйлдвэрийн тоног төхөөрөмж, машин механизмд зөвшөөрөлгүй хүрэхгүй","Ажлын байранд гүйх, тоглох, бусдын анхаарал сарниулах үйлдэл хийхгүй","Согтууруулах ундаа хэрэглэсэн болон мансуурсан байдалтай хүн үйлдвэрт нэвтрэхийг хориглоно"]},
+    {ico:"⚙️",title:"3. Үйлдвэр дотор мөрдөх аюулгүй ажиллагаа",content:"",subsections:[
+      {sub:"🔩 Машин механизмын орчимд",items:["Эргэлдэгч, хөдөлгөөнт эд ангид ойртохгүй","Хамгаалалтын хаалт, хашлагыг давж гарахгүй","Машин ажиллаж байх үед аюултай бүсэд нэвтрэхгүй"]},
+      {sub:"🧪 Түүхий эд, химийн бодисын хэсэгт",items:["Цавуу, уусгагч болон бусад химийн бодист хүрэхгүй","Сав баглаа боодол, шошгыг өөрчлөхгүй","Хурц үнэр мэдрэгдвэл хариуцсан ажилтанд мэдэгдэнэ"]},
+      {sub:"📦 Агуулах болон тээвэрлэлтийн бүсэд",items:["Өргөгч, ачигч техникээс аюулгүй зай барина","Ачааны доогуур болон өргөгдсөн ачааны ойролцоо зогсохгүй","Шар болон улаан тэмдэглэгээтэй бүсэд зөвшөөрөлгүй нэвтрэхгүй"]}
+    ]},
+    {ico:"🔥",title:"4. Галын аюулгүй байдал",content:"",items:["Галын гарц, гал унтраах хэрэгслийг хаахгүй","Галын дохиолол дуугарсан тохиолдолд ажилтны зааврын дагуу хамгийн ойрын гарцаар тайван гарна","Ил гал гаргах, тамхи татахыг хатуу хориглоно"]},
+    {ico:"🚨",title:"5. Онцгой байдлын үед",content:"",items:["Осол, гэмтэл, аюултай нөхцөл илэрвэл хамгийн ойрын ажилтан болон хөтөчид нэн даруй мэдэгдэнэ","Сандарч үймэхгүй, зохион байгуулалттайгаар нүүлгэн шилжүүлэлтийн зааврыг дагана","Эмнэлгийн анхны тусламж шаардлагатай бол үйлдвэрийн эрүүл ахуйн ажилтан эсвэл анхны тусламжийн цэгт хандана"]},
+    {ico:"🚫",title:"6. Хориглох зүйлс",content:"",items:["Фото зураг, дүрс бичлэгийг зөвшөөрөлгүй хийх","Тоног төхөөрөмж ажиллуулах","Химийн бодис, материалд хүрэх","Хог хаягдал хаях","Аюулгүйн тэмдэг тэмдэглэгээг үл тоомсорлох"],danger:true}
+  ];
+
+  sections.forEach(s=>{
+    const card=el("div",{className:"card fadeUp"});
+    card.appendChild(h("div",{style:{
+      display:"flex",alignItems:"center",gap:"8px",marginBottom:"12px",
+      fontFamily:"'DM Serif Display',serif",fontSize:"14px",
+      color:s.danger?"#c0392b":"var(--g)"
+    }},[h("span",{style:{fontSize:"18px"}},[s.ico]),h("span",{},[s.title])]));
+    if(s.content) card.appendChild(h("div",{style:{fontSize:"13px",color:"var(--mut)",lineHeight:"1.7"}},[s.content]));
+    if(s.items&&s.items.length){
+      s.items.forEach((item,i)=>{
+        card.appendChild(h("div",{style:{display:"flex",gap:"10px",padding:"7px 0",borderBottom:i<s.items.length-1?"1px solid var(--gp)":"none",alignItems:"flex-start"}},[
+          h("div",{style:{minWidth:"22px",height:"22px",borderRadius:"50%",background:s.danger?"#e74c3c":"var(--g)",color:"#fff",fontSize:"11px",fontWeight:"700",display:"flex",alignItems:"center",justifyContent:"center",marginTop:"1px",flexShrink:"0"}},[s.danger?"✕":String(i+1)]),
+          h("div",{style:{fontSize:"13px",color:"var(--ink)",lineHeight:"1.6"}},[item])
+        ]));
+      });
+    }
+    if(s.subsections){
+      s.subsections.forEach(sub=>{
+        card.appendChild(h("div",{style:{fontSize:"12px",fontWeight:"700",color:"var(--g)",margin:"10px 0 6px",paddingLeft:"4px"}},[sub.sub]));
+        sub.items.forEach((item,i)=>{
+          card.appendChild(h("div",{style:{display:"flex",gap:"10px",padding:"6px 0",borderBottom:i<sub.items.length-1?"1px solid var(--gp)":"none",alignItems:"flex-start"}},[
+            h("div",{style:{minWidth:"6px",height:"6px",borderRadius:"50%",background:"var(--gl)",marginTop:"7px",flexShrink:"0"}}),
+            h("div",{style:{fontSize:"13px",color:"var(--ink)",lineHeight:"1.6"}},[item])
+          ]));
+        });
+      });
+    }
+    wrap.appendChild(card);
+  });
+
+  // ✅ Баталгаажуулалт — чеклист + хадгалах
+  const confirmItems=[
+    "Зорилгыг ойлгосон",
+    "Ерөнхий шаардлагатай танилцсан",
+    "Машин механизмын аюулгүй ажиллагааг мэдсэн",
+    "Химийн бодис, агуулахын дүрмийг мэдсэн",
+    "Галын аюулгүй байдлыг мэдсэн",
+    "Онцгой байдлын үеийн журмыг мэдсэн",
+    "Хориглох зүйлсийг ойлгосон",
+    "Бүх дүрэм журмыг мөрдөхөө зөвшөөрч байна"
+  ];
+  const checked=new Set();
+
+  const sigCard=el("div",{className:"card fadeUp",style:{border:"2px solid var(--g)",background:"var(--gp)"}});
+  sigCard.appendChild(h("div",{style:{fontFamily:"'DM Serif Display',serif",fontSize:"14px",color:"var(--g)",marginBottom:"12px",display:"flex",alignItems:"center",gap:"8px"}},[
+    h("span",{style:{fontSize:"18px"}},["✅"]),
+    h("span",{},[" 7. Баталгаажуулалт"])
+  ]));
+  sigCard.appendChild(h("div",{style:{fontSize:"13px",color:"var(--ink)",lineHeight:"1.7",marginBottom:"14px",background:"#fff",borderRadius:"10px",padding:"12px",border:"1px solid var(--bdr)"}},[
+    "Доорх бүх зүйлтэй танилцсанаа тэмдэглэнэ үү:"
+  ]));
+
+  // Чеклист
+  const clWrap=el("div",{style:{marginBottom:"14px"}});
+  confirmItems.forEach((item,i)=>{
+    const row=el("div",{style:{display:"flex",alignItems:"center",gap:"10px",padding:"9px 10px",borderRadius:"10px",cursor:"pointer",marginBottom:"3px",background:"#fff",border:"1.5px solid var(--bdr)",transition:"all .15s"}});
+    const box=el("div",{style:{width:"22px",height:"22px",border:"2px solid var(--bdr)",borderRadius:"6px",flexShrink:"0",display:"flex",alignItems:"center",justifyContent:"center",transition:"all .15s"}});
+    const txt=h("div",{style:{fontSize:"13px",color:"var(--ink)",lineHeight:"1.5"}},[item]);
+    row.appendChild(box);row.appendChild(txt);
+    row.onclick=()=>{
+      if(checked.has(i)){
+        checked.delete(i);
+        box.style.background="";box.style.borderColor="var(--bdr)";box.innerHTML="";
+        row.style.background="#fff";row.style.borderColor="var(--bdr)";
+      }else{
+        checked.add(i);
+        box.style.background="var(--g)";box.style.borderColor="var(--g)";
+        box.innerHTML=chk();
+        row.style.background="var(--gp)";row.style.borderColor="var(--g)";
+      }
+      progTxt.textContent=checked.size+"/"+confirmItems.length+" тэмдэглэсэн";
+    };
+    clWrap.appendChild(row);
+  });
+  sigCard.appendChild(clWrap);
+
+  const progTxt=h("div",{style:{fontSize:"12px",color:"var(--mut)",textAlign:"center",marginBottom:"14px"}},["0/"+confirmItems.length+" тэмдэглэсэн"]);
+  sigCard.appendChild(progTxt);
+
+  // Нэр оруулах
+  const niw=el("div",{style:{marginBottom:"10px"}});
+  niw.appendChild(h("div",{className:"inp-label"},["Зочны овог, нэр *"]));
+  const nameInp=el("input",{className:"inp",type:"text",placeholder:"Овог Нэр"});
+  niw.appendChild(nameInp);sigCard.appendChild(niw);
+
+  // Байгууллага
+  const orgw=el("div",{style:{marginBottom:"14px"}});
+  orgw.appendChild(h("div",{className:"inp-label"},["Байгууллага"]));
+  const orgInp=el("input",{className:"inp",type:"text",placeholder:"Байгууллагын нэр"});
+  orgw.appendChild(orgInp);sigCard.appendChild(orgw);
+
+  // Гарын үсэг
+  const sigw=el("div",{style:{marginBottom:"14px"}});
+  sigw.appendChild(h("div",{className:"inp-label"},["Гарын үсэг *"]));
+  const sigOuter=el("div",{style:{
+    border:"2px dashed var(--bdr)",borderRadius:"12px",
+    background:"#fff",position:"relative",overflow:"hidden",
+    cursor:"crosshair",height:"130px"
+  }});
+  const sigCv=el("canvas",{style:{display:"block",width:"100%",height:"130px",background:"#fff"}});
+  const sigHint=h("div",{style:{
+    position:"absolute",inset:"0",display:"flex",alignItems:"center",
+    justifyContent:"center",color:"#aaa",fontSize:"13px",pointerEvents:"none"
+  }},["✍️ Энд гарын үсгээ зурна уу"]);
+  const sigClr=el("button",{style:{
+    position:"absolute",top:"6px",right:"6px",
+    background:"rgba(231,76,60,.85)",color:"#fff",border:"none",
+    borderRadius:"6px",padding:"3px 8px",fontSize:"11px",
+    cursor:"pointer",fontFamily:"inherit"
+  }},["Арилгах"]);
+  sigOuter.appendChild(sigCv);sigOuter.appendChild(sigHint);sigOuter.appendChild(sigClr);
+  sigw.appendChild(sigOuter);
+  sigCard.appendChild(sigw);
+
+  let vCtx,vDrawing=false,vDrawn=false;
+  setTimeout(()=>{
+    sigCv.width=sigOuter.offsetWidth||320;sigCv.height=130;
+    vCtx=sigCv.getContext("2d");
+    vCtx.strokeStyle="#1a2e1f";vCtx.lineWidth=2.5;vCtx.lineCap="round";vCtx.lineJoin="round";
+    function vPos(e){
+      const r=sigCv.getBoundingClientRect();
+      const t=e.touches?e.touches[0]:e;
+      return[(t.clientX-r.left)*(sigCv.width/r.width),(t.clientY-r.top)*(sigCv.height/r.height)];
+    }
+    sigCv.addEventListener("mousedown",e=>{vDrawing=true;const[x,y]=vPos(e);vCtx.beginPath();vCtx.moveTo(x,y);});
+    sigCv.addEventListener("mousemove",e=>{if(!vDrawing)return;vDrawn=true;sigHint.style.opacity="0";const[x,y]=vPos(e);vCtx.lineTo(x,y);vCtx.stroke();});
+    sigCv.addEventListener("mouseup",()=>{vDrawing=false;});
+    sigCv.addEventListener("mouseleave",()=>{vDrawing=false;});
+    sigCv.addEventListener("touchstart",e=>{e.preventDefault();vDrawing=true;const[x,y]=vPos(e);vCtx.beginPath();vCtx.moveTo(x,y);},{passive:false});
+    sigCv.addEventListener("touchmove",e=>{e.preventDefault();if(!vDrawing)return;vDrawn=true;sigHint.style.opacity="0";const[x,y]=vPos(e);vCtx.lineTo(x,y);vCtx.stroke();},{passive:false});
+    sigCv.addEventListener("touchend",()=>{vDrawing=false;});
+  },50);
+  sigClr.onclick=()=>{if(vCtx){vCtx.clearRect(0,0,sigCv.width,sigCv.height);sigHint.style.opacity="1";vDrawn=false;}};
+
+  // Хадгалах товч
+  const saveBtn=el("button",{className:"btn btn-p"},["✅ Баталгаажуулж хадгалах"]);
+  saveBtn.onclick=()=>{
+    if(!nameInp.value.trim()) return toast("Нэрийг бичнэ үү","err");
+    if(checked.size<confirmItems.length) return toast("Бүх зүйлийг тэмдэглэнэ үү","err");
+    if(!vDrawn) return toast("Гарын үсгээ зурна уу","err");
+    // Гарын үсэг авах
+    const _vc=document.createElement("canvas");
+    _vc.width=sigCv.width;_vc.height=sigCv.height;
+    const _vx=_vc.getContext("2d");
+    _vx.fillStyle="#fff";_vx.fillRect(0,0,_vc.width,_vc.height);
+    _vx.drawImage(sigCv,0,0);
+    const sigData=_vc.toDataURL("image/jpeg",0.85);
+    const log={
+      id: Date.now(),
+      name: nameInp.value.trim(),
+      org: orgInp.value.trim()||"—",
+      date: toDay(),
+      time: toNow(),
+      items: confirmItems.length,
+      checked: checked.size,
+      signature: sigData
+    };
+    const logs=getVisitorLogs();
+    logs.unshift(log);
+    if(logs.length>100) logs.splice(100);
+    saveVisitorLogs(logs);
+    // Амжилтын хуудас
+    app.innerHTML="";
+    const pg=h("div",{className:"center-page",style:{background:"var(--gp)"}});
+    const cd=el("div",{className:"glass scaleIn",style:{maxWidth:"340px",width:"100%",padding:"36px 28px",textAlign:"center"}});
+    const circ=el("div",{className:"ok-circle"});
+    circ.innerHTML='<svg width="36" height="30" viewBox="0 0 36 30" fill="none"><polyline points="2,15 13,26 34,2" stroke="white" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+    cd.appendChild(circ);
+    cd.appendChild(brand(22,false));
+    cd.appendChild(h("div",{style:{fontFamily:"'DM Serif Display',serif",fontSize:"18px",color:"var(--g)",margin:"16px 0 6px"}},["Амжилттай баталгаажлаа!"]));
+    cd.appendChild(h("div",{style:{color:"var(--mut)",fontSize:"13px",marginBottom:"8px"}},[log.name+" та ХАБЭА-н зааварчилгааг уншиж танилцлаа."]));
+    const infoDiv=el("div",{style:{background:"var(--gp)",borderRadius:"12px",padding:"12px",fontSize:"12px",color:"var(--mut)",marginBottom:"20px",textAlign:"left"}});
+    infoDiv.innerHTML="📅 "+log.date+" 🕐 "+log.time+"<br>🏢 "+log.org;
+    cd.appendChild(infoDiv);
+    cd.appendChild(el("button",{className:"btn btn-p",onclick:renderHome},["Нүүр хуудас"]));
+    pg.appendChild(cd);app.appendChild(pg);
+    toast("Хадгалагдлаа ✓");
+  };
+  sigCard.appendChild(saveBtn);
+  wrap.appendChild(sigCard);
+  page.appendChild(wrap);
+  app.appendChild(page);
+}
+
 
 // ════════════════════════════════════════════════════════════
 // 🔐 PIN
@@ -1928,7 +2195,7 @@ function renderManager(onLogout){
     const signedSet=new Set(todayRecs.map(r=>normName(r.name)));
     const unsigned=workers.filter(w=>!signedSet.has(normName(w.name)));
     const dateRecs=recs.filter(r=>r.date===selDate);
-    const TABS=[{id:"dashboard",l:"🏠 Хянах"},{id:"today",l:"📊 Өнөөдөр"},{id:"report",l:"📋 Тайлан"},{id:"workers",l:"👥 Ажилтан"},{id:"settings",l:"⚙️ Тохиргоо"}];
+    const TABS=[{id:"dashboard",l:"🏠 Хянах"},{id:"today",l:"📊 Өнөөдөр"},{id:"report",l:"📋 Тайлан"},{id:"workers",l:"👥 Ажилтан"},{id:"visitors",l:"🏭 Зочид"},{id:"settings",l:"⚙️ Тохиргоо"}];
     const page=el("div",{className:"page"});
     const hdr=el("div",{className:"mgr-hdr"});
     const ht=h("div",{style:{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:"10px"}});
@@ -2356,6 +2623,103 @@ function renderManager(onLogout){
         });
       }
       body.appendChild(blCard);
+    }
+
+    // ══════ VISITORS ══════
+    else if(tab==="visitors"){
+      const vLogs=getVisitorLogs();
+      const vc=el("div",{className:"card fadeUp"});
+
+      // Гарчиг + тоо
+      vc.appendChild(h("div",{style:{
+        display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:"14px"
+      }},[
+        h("div",{className:"card-head",style:{margin:"0"}},["🏭 Зочдын бүртгэл ("+vLogs.length+")"]),
+        vLogs.length>0?el("button",{className:"btn btn-d btn-sm",onclick:()=>{
+          if(!confirm("Зочдын бүх бүртгэлийг устгах уу?"))return;
+          saveVisitorLogs([]);toast("Устгагдлаа","info");render();
+        }},["🗑️ Цэвэрлэх"]):h("span",{},[])
+      ]));
+
+      if(!vLogs.length){
+        vc.appendChild(h("div",{style:{
+          color:"var(--mut)",fontSize:"13px",
+          textAlign:"center",padding:"20px 0"
+        }},["Зочдын бүртгэл байхгүй байна"]));
+      }else{
+        // Өдрөөр бүлэглэх
+        const byDate={};
+        vLogs.forEach(v=>{
+          if(!byDate[v.date])byDate[v.date]=[];
+          byDate[v.date].push(v);
+        });
+
+        Object.entries(byDate).forEach(([date,logs])=>{
+          // Огноо хуваагч
+          vc.appendChild(h("div",{style:{
+            fontSize:"11px",fontWeight:"700",color:"var(--mut)",
+            letterSpacing:".06em",textTransform:"uppercase",
+            margin:"10px 0 6px",display:"flex",alignItems:"center",gap:"6px"
+          }},[
+            h("div",{style:{flex:"1",height:"1px",background:"var(--bdr)"}}),
+            h("span",{},[date]),
+            h("span",{style:{
+              background:"var(--g)",color:"#fff",
+              borderRadius:"20px",padding:"1px 8px",fontSize:"10px"
+            }},[logs.length+" зочин"]),
+            h("div",{style:{flex:"1",height:"1px",background:"var(--bdr)"}}),
+          ]));
+
+          logs.forEach(v=>{
+            const row=el("div",{style:{
+              display:"flex",alignItems:"center",gap:"10px",
+              padding:"10px 0",borderBottom:"1px solid var(--gp)"
+            }});
+            // Аватар
+            row.appendChild(el("div",{style:{
+              width:"36px",height:"36px",borderRadius:"50%",flexShrink:"0",
+              background:"linear-gradient(135deg,var(--g),var(--gd))",
+              color:"#fff",fontSize:"13px",fontWeight:"700",
+              display:"flex",alignItems:"center",justifyContent:"center"
+            }},[initials(v.name)]));
+            // Мэдээлэл
+            row.appendChild(h("div",{style:{flex:"1"}},[
+              h("div",{style:{fontWeight:"700",fontSize:"13px"}},[v.name]),
+              h("div",{style:{fontSize:"11px",color:"var(--mut)"}},[
+                "🏢 "+(v.org||"—")+" · 🕐 "+v.time
+              ])
+            ]));
+            // Badge + гарын үсэг
+            const rightCol=h("div",{style:{display:"flex",flexDirection:"column",alignItems:"flex-end",gap:"4px"}});
+            rightCol.appendChild(el("div",{className:"badge bg-g"},["✓ "+v.checked+"/"+v.items]));
+            if(v.signature){
+              rightCol.appendChild(el("img",{
+                src:v.signature,
+                style:{height:"28px",maxWidth:"80px",objectFit:"contain",
+                  border:"1px solid var(--bdr)",borderRadius:"4px",background:"#fff"}
+              }));
+            }
+            row.appendChild(rightCol);
+            vc.appendChild(row);
+          });
+        });
+
+        // CSV export
+        const csvBtn=el("button",{className:"btn btn-o btn-sm",style:{marginTop:"12px",width:"100%"}},["📥 CSV татах"]);
+        csvBtn.onclick=()=>{
+          const rows=[["Огноо","Цаг","Нэр","Байгууллага","Тэмдэглэсэн"]];
+          vLogs.forEach(v=>rows.push([v.date,v.time,v.name,v.org||"—",v.checked+"/"+v.items]));
+          const csvLines=rows.map(r=>r.map(c=>{const s=String(c||"");return '"'+s.replace(/"/g,'""')+'"';}).join(","));
+          const csv="﻿"+csvLines.join("\r\n");
+          const blob=new Blob([csv],{type:"text/csv;charset=utf-8;"});
+          const url=URL.createObjectURL(blob);
+          const a=document.createElement("a");a.href=url;a.download="Зочдын_бүртгэл_"+toDay()+".csv";a.click();
+          URL.revokeObjectURL(url);
+          toast("CSV татагдлаа ✓");
+        };
+        vc.appendChild(csvBtn);
+      }
+      body.appendChild(vc);
     }
 
     // ══════ SETTINGS ══════
