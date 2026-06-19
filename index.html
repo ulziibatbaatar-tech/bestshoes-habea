@@ -215,7 +215,12 @@ const lsSet=(k,v)=>{
 };
 const getRecs  =()=>lsGet(K.recs)||[];
 const saveRecs =v=>lsSet(K.recs,v);
-const getWrks  =()=>lsGet(K.wrks)||[];
+const getWrks  =()=>{
+  const all=lsGet(K.wrks)||[];
+  const bl=new Set((lsGet(K.blacklist)||[]).map(b=>(b.name||"").trim().toLowerCase()));
+  // Blacklist ажилтнуудыг ҮРГЭЛЖ шүүж хаях
+  return bl.size>0 ? all.filter(w=>!bl.has((w.name||"").trim().toLowerCase())) : all;
+};
 const saveWrks =v=>lsSet(K.wrks,v);
 const getQueue =()=>lsGet(K.queue)||[];
 const saveQueue=v=>lsSet(K.queue,v);
@@ -308,22 +313,31 @@ function pruneNewWorkers() {
 function _pad(n){return String(n).padStart(2,"0");}
 // Улаанбаатарын цаг — toLocaleString аргаар
 // Бүх браузер, бүх timezone-д найдвартай ажилладаг
+// ⏰ УЛААНБААТАРЫН ЦАГ — sv-SE хамгийн найдвартай арга
+function _getUBStr(){
+  return new Date().toLocaleString("sv-SE",{timeZone:"Asia/Ulaanbaatar"});
+}
 function _getUBDate(){
-  // "2026/05/23 09:34" хэлбэрт авна
-  const s=new Date().toLocaleString("sv-SE",{timeZone:"Asia/Ulaanbaatar"});
-  // sv-SE locale → "2026-05-23 09:34:01" стандарт формат
+  const s=_getUBStr();
   const [datePart,timePart]=s.split(" ");
   const [year,month,day]=datePart.split("-");
-  const [hour,minute]=timePart.split(":");
-  return{year,month,day,hour,minute};
+  const [hour,minute,second]=(timePart||"00:00:00").split(":");
+  return{year,month,day,hour,minute,second};
 }
 function toDay(){
   const p=_getUBDate();
   return `${p.year}.${p.month}.${p.day}`;
 }
 function toNow(){
-  const p=_getUBDate();
-  return `${p.hour}:${p.minute}`;
+  // Яг одоогийн UB цаг — дэлгэцтэй ижил
+  const s=_getUBStr();
+  const timePart=s.split(" ")[1]||"00:00:00";
+  return timePart.substring(0,5); // "HH:MM"
+}
+function toNowFull(){
+  // Секундтэй — дэлгэцтэй яг ижил
+  const s=_getUBStr();
+  return (s.split(" ")[1]||"00:00:00").substring(0,8);
 }
 function mnToISO(mnDate){
   if(!mnDate)return "";
@@ -425,14 +439,12 @@ async function sendSheets(rec){
   const q=getQueue();
   // time-г LocalStorage-ийн хуучин утгаар биш
   // гарын үсэг зурсан үеийн БОДИТ цагаар баталгаажуулах
+  // Цаг: toNow() → sv-SE UB цаг — дэлгэцтэй яг ижил
   const safeRec={
     ...rec,
     passed:   rec.passed?"Тэнцсэн":"Дутуу",
     instrRead:rec.instrRead?"Тийм":"Үгүй",
-    // Цаг: rec.time байвал ашиглах, эс бол одоогийн цаг
-    time: rec.time && /^\d{1,2}:\d{2}$/.test(String(rec.time).trim())
-      ? rec.time
-      : toNow()
+    time: toNow() // ҮРГЭЛЖ sv-SE UB цаг
   };
   q.push({payload:{action:"addRecord",...safeRec},ts:Date.now(),attempts:0});
   saveQueue(q);await flushQueue();
@@ -1230,11 +1242,12 @@ function renderHome(){
     textDecoration:"none",
     WebkitTapHighlightColor:"rgba(0,0,0,0)"
   }},["🚨  Аюул мэдээлэх"]);
-  hazardBtn.href = HAZARD_FORM_URL;
-  hazardBtn.target = "_blank";
-  hazardBtn.rel = "noopener";
-
-  hazardBtn.addEventListener("click", function(){
+  // 🚨 Аюул товч → Осол бүртгэх форм нээнэ
+  hazardBtn.href = "javascript:void(0)";
+  hazardBtn.removeAttribute("target");
+  hazardBtn.removeAttribute("rel");
+  hazardBtn.addEventListener("click", function(e){
+    e.preventDefault();
     addHazardNotif("Аюул мэдэгдсэн","");
     if(Notification.permission==="granted"){
       try{new Notification("🚨 ХАБЭА — Аюулын мэдэгдэл",{
@@ -1242,9 +1255,9 @@ function renderHome(){
         icon:"icon-192x192.png"
       });}catch(e){}
     }
+    // Осол бүртгэх форм нээх
+    renderIncidentForm(renderHome);
   });
-  // <a> tag болгох — мобайл Safari-д хамгийн найдвартай
-  hazardBtn.onclick = null;
   // 🏭 Зочдод өгөх зааварчилгаа товч
   const visitorBtn=el("button",{style:{
     padding:"14px",
@@ -1304,8 +1317,344 @@ function renderHome(){
         if(w.phone&&lw.phone!==w.phone){lw.phone=w.phone;changed=true;}
       }
     });
-    if(changed)saveWrks(local);
+    // Blacklist-д орсон ажилтнуудыг LocalStorage-с цэвэрлэх
+    const _cleanW=local.filter(w=>!bl.has(normName(w.name)));
+    if(changed||_cleanW.length!==local.length)saveWrks(_cleanW);
   }).catch(()=>{});
+}
+
+
+// ════════════════════════════════════════════════════════════
+// 🛡️ HSE БҮРТГЭЛИЙН ФОРМ
+// ════════════════════════════════════════════════════════════
+function showHSEForm(type, onDone) {
+  const FORMS = {
+    incidents: {
+      title:"🚨 Осол бүртгэх", color:"#e74c3c",
+      fields:[
+        {key:"location", label:"Байршил *", type:"text", ph:"Тасаг / байр"},
+        {key:"dept", label:"Хэлтэс *", type:"select", opts:["Гүйцэтгэл","Оёдол","Гоёл","Санхүү","Эсгүүр","Захиргаа"]},
+        {key:"incidentType", label:"Осолын төрөл *", type:"select", opts:["Гэмтэл","Өвчин","Гал","Химийн нөлөө","Унаж бэртэх","Тоног төхөөрөмжийн гэмтэл","Бусад"]},
+        {key:"severity", label:"Хохирлын зэрэг *", type:"select", opts:["Бага (FAK)","Дунд (МТС)","Их (LTI)","Маш их (Fatality)"]},
+        {key:"injured", label:"Гэмтсэн хүн", type:"text", ph:"Нэр эсвэл тоо"},
+        {key:"description", label:"Тайлбар *", type:"textarea", ph:"Юу болсоныг дэлгэрэнгүй бичнэ үү"},
+        {key:"cause", label:"Шалтгаан", type:"textarea", ph:"Осол болсон шалтгаан"},
+        {key:"action_taken", label:"Авсан арга хэмжээ", type:"textarea", ph:"Яаралтай авсан арга хэмжээ"},
+        {key:"responsible", label:"Хариуцсан", type:"text", ph:"Хариуцах ажилтан"},
+      ]
+    },
+    nearMiss: {
+      title:"⚠️ Дөхсөн тохиолдол", color:"#e67e22",
+      fields:[
+        {key:"location", label:"Байршил *", type:"text", ph:"Байршил"},
+        {key:"dept", label:"Хэлтэс *", type:"select", opts:["Гүйцэтгэл","Оёдол","Гоёл","Санхүү","Эсгүүр","Захиргаа"]},
+        {key:"description", label:"Тайлбар *", type:"textarea", ph:"Юу болсон / болох байсан"},
+        {key:"potential", label:"Боломжит хохирол", type:"select", opts:["Бага","Дунд","Их","Маш их"]},
+        {key:"cause", label:"Шалтгаан", type:"textarea", ph:"Шалтгаан"},
+        {key:"action_taken", label:"Авсан арга хэмжээ", type:"textarea", ph:"Арга хэмжээ"},
+        {key:"deadline", label:"Дуусах огноо", type:"date", ph:""},
+        {key:"responsible", label:"Хариуцсан", type:"text", ph:"Хариуцах ажилтан"},
+      ]
+    },
+    inspection: {
+      title:"🔍 Шалгалт бүртгэх", color:"#2980b9",
+      fields:[
+        {key:"type", label:"Шалгалтын төрөл *", type:"select", opts:["Өдөр тутмын","Долоо хоногийн","Сарын","Аудит","Гэнэтийн"]},
+        {key:"location", label:"Байршил *", type:"text", ph:"Байршил"},
+        {key:"dept", label:"Хэлтэс *", type:"select", opts:["Гүйцэтгэл","Оёдол","Гоёл","Санхүү","Эсгүүр","Захиргаа"]},
+        {key:"inspector", label:"Шалгасан хүн *", type:"text", ph:"Шалгасан ажилтны нэр"},
+        {key:"critical", label:"Хүнд зөрчил", type:"number", ph:"0"},
+        {key:"major", label:"Дунд зөрчил", type:"number", ph:"0"},
+        {key:"minor", label:"Хөнгөн зөрчил", type:"number", ph:"0"},
+        {key:"conclusion", label:"Дүгнэлт", type:"textarea", ph:"Шалгалтын дүгнэлт"},
+        {key:"deadline", label:"Засах хугацаа", type:"date", ph:""},
+      ]
+    },
+    training: {
+      title:"📚 Сургалт бүртгэх", color:"#8e44ad",
+      fields:[
+        {key:"name", label:"Сургалтын нэр *", type:"text", ph:"Сургалтын нэр"},
+        {key:"type", label:"Төрөл *", type:"select", opts:["ХАБЭА","Гал унтраах","Анхны тусламж","Химийн аюул","Онцгой байдал","PPE","Мэргэжлийн"]},
+        {key:"dept", label:"Хэлтэс *", type:"select", opts:["Гүйцэтгэл","Оёдол","Гоёл","Санхүү","Эсгүүр","Захиргаа","Бүгд"]},
+        {key:"participants", label:"Оролцогчдын тоо *", type:"number", ph:"0"},
+        {key:"hours", label:"Нийт цаг *", type:"number", ph:"0"},
+        {key:"trainer", label:"Багш / Зааварлагч", type:"text", ph:"Нэр"},
+        {key:"score", label:"Дундаж оноо (%)", type:"number", ph:"0"},
+        {key:"expiry", label:"Дуусах огноо", type:"date", ph:""},
+      ]
+    },
+    actions: {
+      title:"✅ Арга хэмжээ нэмэх", color:"#27ae60",
+      fields:[
+        {key:"source", label:"Эх үүсвэр *", type:"select", opts:["Осол","Дөхсөн","Шалгалт","Аудит","Ажилтан","Бусад"]},
+        {key:"actionName", label:"Арга хэмжээний нэр *", type:"text", ph:"Нэр"},
+        {key:"dept", label:"Хэлтэс *", type:"select", opts:["Гүйцэтгэл","Оёдол","Гоёл","Санхүү","Эсгүүр","Захиргаа"]},
+        {key:"responsible", label:"Хариуцсан *", type:"text", ph:"Нэр"},
+        {key:"startDate", label:"Эхлэх огноо", type:"date", ph:""},
+        {key:"dueDate", label:"Дуусах огноо *", type:"date", ph:""},
+        {key:"notes", label:"Тайлбар", type:"textarea", ph:"Нэмэлт тайлбар"},
+      ]
+    },
+    ppe: {
+      title:"🦺 PPE бүртгэх", color:"#16a085",
+      fields:[
+        {key:"worker", label:"Ажилтны нэр *", type:"text", ph:"Нэр"},
+        {key:"dept", label:"Хэлтэс *", type:"select", opts:["Гүйцэтгэл","Оёдол","Гоёл","Санхүү","Эсгүүр","Захиргаа"]},
+        {key:"ppeType", label:"PPE төрөл *", type:"select", opts:["Малгай","Нүдний хамгаалалт","Чих хамгаалалт","Амьсгалын хамгаалалт","Гар хамгаалалт","Хөл хамгаалалт","Биеийн хамгаалалт","Аюулгүйн бүс","Бусад"]},
+        {key:"size", label:"Хэмжээ", type:"text", ph:"S/M/L/XL эсвэл тоо"},
+        {key:"qty", label:"Тоо хэмжээ *", type:"number", ph:"1"},
+        {key:"expiry", label:"Дуусах огноо", type:"date", ph:""},
+        {key:"notes", label:"Тайлбар", type:"textarea", ph:"Нэмэлт"},
+      ]
+    },
+    permit: {
+      title:"📋 Permit to Work", color:"#2c3e50",
+      fields:[
+        {key:"workName", label:"Ажлын нэр *", type:"text", ph:"Ажлын нэр"},
+        {key:"location", label:"Байршил *", type:"text", ph:"Байршил"},
+        {key:"dept", label:"Хэлтэс *", type:"select", opts:["Гүйцэтгэл","Оёдол","Гоёл","Санхүү","Эсгүүр","Захиргаа"]},
+        {key:"permitType", label:"Permit төрөл *", type:"select", opts:["Ерөнхий ажил","Өндөрт ажиллах","Хаалттай орчинд","Халуун ажил","Цахилгаан ажил","Химийн ажил","Буулгах ажил"]},
+        {key:"startTime", label:"Эхлэх цаг *", type:"time", ph:""},
+        {key:"endTime", label:"Дуусах цаг *", type:"time", ph:""},
+        {key:"responsible", label:"Хариуцсан *", type:"text", ph:"Нэр"},
+        {key:"approver", label:"Зөвшөөрсөн", type:"text", ph:"Менежер нэр"},
+      ]
+    },
+  };
+
+  const fm = FORMS[type];
+  if (!fm) return;
+
+  const ov = el("div",{className:"modal-overlay"});
+  const mc = el("div",{style:{
+    background:"#fff",borderRadius:"20px",padding:"24px",
+    width:"100%",maxWidth:"420px",maxHeight:"85vh",
+    overflowY:"auto",boxShadow:"0 20px 60px rgba(0,0,0,.25)",
+    animation:"scaleIn .25s cubic-bezier(.34,1.56,.64,1) both"
+  }});
+
+  // Гарчиг
+  mc.appendChild(h("div",{style:{
+    fontFamily:"'DM Serif Display',serif",fontSize:"16px",
+    color:fm.color,marginBottom:"16px",
+    display:"flex",alignItems:"center",gap:"8px"
+  }},[fm.title]));
+
+  // Хэлбэрийн талбарууд
+  const vals = {};
+  fm.fields.forEach(f=>{
+    const wrap = el("div",{style:{marginBottom:"10px"}});
+    wrap.appendChild(h("div",{className:"inp-label"},[f.label]));
+    let inp;
+    if(f.type==="select"){
+      inp = el("select",{className:"sel"});
+      const def = el("option",{value:""},[" — Сонгох — "]);
+      def.disabled=true; def.selected=true;
+      inp.appendChild(def);
+      f.opts.forEach(o=>inp.appendChild(el("option",{value:o},[o])));
+    } else if(f.type==="textarea"){
+      inp = el("textarea",{className:"inp",style:{minHeight:"70px",resize:"vertical"},placeholder:f.ph||""});
+    } else {
+      inp = el("input",{className:"inp",type:f.type||"text",placeholder:f.ph||""});
+    }
+    inp.oninput = () => { vals[f.key] = inp.value; };
+    inp.onchange = () => { vals[f.key] = inp.value; };
+    wrap.appendChild(inp);
+    mc.appendChild(wrap);
+  });
+
+  // Товчнууд
+  const btns = h("div",{style:{display:"flex",gap:"8px",marginTop:"16px"}});
+  const cancelBtn = el("button",{className:"btn btn-o",style:{flex:"1"}},["Цуцлах"]);
+  cancelBtn.onclick = () => ov.remove();
+  const saveBtn = el("button",{className:"btn btn-p",style:{
+    flex:"1",background:"linear-gradient(135deg,"+fm.color+","+fm.color+"dd)"
+  }},["💾 Хадгалах"]);
+
+  saveBtn.onclick = async () => {
+    // Заавал талбар шалгах
+    const required = fm.fields.filter(f=>f.label.includes("*"));
+    for(const f of required){
+      const v = vals[f.key];
+      if(v===undefined||v===null||!String(v).trim()||String(v).trim()===" — Сонгох — "){
+        return toast(f.label.replace(" *","")+" оруулна уу","err");
+      }
+    }
+    saveBtn.disabled=true; saveBtn.textContent="Хадгалж байна...";
+    const _HSE_MAP={"incidents":"addIncident","nearMiss":"addNearMiss","inspection":"addInspection","training":"addTraining","actions":"addAction","ppe":"addPPE","permit":"addPermit"};
+    const payload = { action:(_HSE_MAP[type]||"add"+type.charAt(0).toUpperCase()+type.slice(1)), ...vals };
+    const res = await postToSheets(payload);
+    if(res&&res.ok){
+      ov.remove();
+      toast("✅ Амжилттай Sheets-д хадгалагдлаа!");
+      if(onDone) onDone();
+    } else {
+      saveBtn.disabled=false; saveBtn.textContent="💾 Хадгалах";
+      const errMsg = (res&&res.error)||"Алдаа гарлаа";
+      toast("❌ "+errMsg+". Deploy шинэчлэгдсэн үү?","err");
+      console.error("HSE save error:", res);
+    }
+  };
+
+  btns.appendChild(cancelBtn);
+  btns.appendChild(saveBtn);
+  mc.appendChild(btns);
+  ov.appendChild(mc);
+  ov.onclick = e => { if(e.target===ov) ov.remove(); };
+  document.body.appendChild(ov);
+}
+
+
+// ════════════════════════════════════════════════════════════
+// 🚨 АЮУЛ / ОСОЛ БҮРТГЭХ ФОРМ — Нүүр хуудаснаас дуудагдана
+// ════════════════════════════════════════════════════════════
+function renderIncidentForm(onBack){
+  const app=document.getElementById("app");
+  app.innerHTML="";
+  const page=el("div",{className:"page",style:{background:"var(--gp)"}});
+
+  // Header
+  const hdr=h("div",{style:{
+    background:"linear-gradient(135deg,#922b21,#c0392b)",
+    padding:"14px 16px",display:"flex",alignItems:"center",justifyContent:"space-between"
+  }});
+  const bb=el("button",{style:{
+    background:"rgba(255,255,255,.15)",border:"1px solid rgba(255,255,255,.2)",
+    color:"#fff",borderRadius:"8px",padding:"6px 12px",
+    cursor:"pointer",fontSize:"13px",fontFamily:"inherit"
+  }},["← Буцах"]);
+  bb.onclick=()=>onBack();
+  hdr.appendChild(bb);
+  hdr.appendChild(h("div",{style:{
+    fontFamily:"'DM Serif Display',serif",fontSize:"15px",
+    color:"#fff",textAlign:"center",flex:"1"
+  }},["🚨 Аюул / Осол бүртгэх"]));
+  hdr.appendChild(h("div",{style:{width:"60px"}}));
+  page.appendChild(hdr);
+
+  const wrap=h("div",{style:{maxWidth:"560px",margin:"0 auto",padding:"16px 16px 100px"}});
+
+  // Анхааруулга карт
+  wrap.appendChild(h("div",{style:{
+    background:"#fff5f5",border:"2px solid #e74c3c",borderRadius:"16px",
+    padding:"16px",marginBottom:"14px",textAlign:"center"
+  }},[
+    h("div",{style:{fontSize:"32px",marginBottom:"8px"}},["🚨"]),
+    h("div",{style:{fontFamily:"'DM Serif Display',serif",fontSize:"16px",color:"#c0392b",marginBottom:"4px"}},["Аюул / Осол тохиолдлоо"]),
+    h("div",{style:{fontSize:"12px",color:"#7f8c8d"}},["Мэдээллийг үнэн зөв бөглөнө үү. Таны бүртгэл менежерт шууд очно."])
+  ]));
+
+  const vals={};
+  const fields=[
+    {key:"reporterName", label:"Мэдээлж буй ажилтан *", type:"text",    ph:"Таны нэр"},
+    {key:"dept",         label:"Тасаг / Хэлтэс *",      type:"select",  opts:["Гүйцэтгэл","Оёдол","Гоёл","Санхүү","Эсгүүр","Захиргаа"]},
+    {key:"location",     label:"Байршил *",              type:"text",    ph:"Аюул болсон газар"},
+    {key:"incidentType", label:"Осолын төрөл *",         type:"select",  opts:["Гэмтэл / бэртэл","Унаж бэртэх","Гал / тэсрэлт","Химийн нөлөө","Тоног төхөөрөмжийн гэмтэл","Дөхсөн тохиолдол","Аюултай нөхцөл байдал","Бусад"]},
+    {key:"severity",     label:"Хохирлын зэрэг *",       type:"select",  opts:["Бага (анхны тусламж)","Дунд (эмчид хандах)","Их (эмнэлэгт хэвтэх)","Маш их (хүнд гэмтэл)","Үхэл"]},
+    {key:"injured",      label:"Гэмтсэн хүн",            type:"text",    ph:"Нэр эсвэл хүний тоо (байхгүй бол хоосон)"},
+    {key:"description",  label:"Юу болсон? *",           type:"textarea",ph:"Аюул / осол хэрхэн болсныг дэлгэрэнгүй тайлбарлана уу"},
+    {key:"cause",        label:"Болсон шалтгаан",        type:"textarea",ph:"Яагаад болсон гэж бодож байна вэ?"},
+    {key:"actionTaken",  label:"Яаралтай авсан арга хэмжээ", type:"textarea", ph:"Одоо хүртэл юу хийсэн бэ?"},
+  ];
+
+  fields.forEach(f=>{
+    const wrap2=el("div",{className:"card",style:{padding:"14px",marginBottom:"8px"}});
+    wrap2.appendChild(h("div",{className:"inp-label"},[f.label]));
+    let inp;
+    if(f.type==="select"){
+      inp=el("select",{className:"sel"});
+      const def=el("option",{value:""},[" — Сонгох — "]);
+      def.disabled=true;def.selected=true;inp.appendChild(def);
+      f.opts.forEach(o=>inp.appendChild(el("option",{value:o},[o])));
+    }else if(f.type==="textarea"){
+      inp=el("textarea",{className:"inp",style:{minHeight:"80px",resize:"vertical"},placeholder:f.ph});
+    }else{
+      inp=el("input",{className:"inp",type:"text",placeholder:f.ph});
+    }
+    inp.oninput=()=>{vals[f.key]=inp.value;};
+    inp.onchange=()=>{vals[f.key]=inp.value;};
+    wrap2.appendChild(inp);
+    wrap.appendChild(wrap2);
+  });
+
+  // Илгээх товч
+  const submitBtn=el("button",{style:{
+    width:"100%",padding:"16px",background:"linear-gradient(135deg,#922b21,#c0392b)",
+    color:"#fff",border:"none",borderRadius:"14px",fontSize:"15px",
+    fontWeight:"700",fontFamily:"'DM Sans',sans-serif",cursor:"pointer",
+    boxShadow:"0 4px 16px rgba(192,57,43,.4)"
+  }},["🚨 Аюул мэдэгдэх — Менежерт илгээх"]);
+
+  submitBtn.onclick=async()=>{
+    // Шаардлагатай талбар шалгах
+    const req=[
+      {key:"reporterName",lbl:"Нэр"},
+      {key:"dept",        lbl:"Тасаг"},
+      {key:"location",    lbl:"Байршил"},
+      {key:"incidentType",lbl:"Осолын төрөл"},
+      {key:"severity",    lbl:"Хохирлын зэрэг"},
+      {key:"description", lbl:"Тайлбар"},
+    ];
+    for(const r of req){
+      if(!vals[r.key]||!String(vals[r.key]).trim())
+        return toast(r.lbl+" оруулна уу","err");
+    }
+    submitBtn.disabled=true;
+    submitBtn.textContent="📤 Илгээж байна...";
+
+    // LocalStorage-д хадгалах (offline)
+    addHazardNotif(vals.reporterName, vals.dept);
+
+    // Apps Script-д POST
+    const payload={
+      action:       "addIncident",
+      location:     vals.location||"",
+      dept:         vals.dept||"",
+      incidentType: vals.incidentType||"",
+      severity:     vals.severity||"",
+      injured:      vals.injured||"—",
+      description:  vals.description||"",
+      cause:        vals.cause||"—",
+      action_taken: vals.actionTaken||"—",
+      responsible:  vals.reporterName||"",
+      lti:          (vals.severity||"").includes("хэвтэх")||(vals.severity||"").includes("хүнд")?"Тийм":"Үгүй"
+    };
+
+    const res=await postToSheets(payload).catch(()=>({ok:false}));
+
+    // Амжилтын дэлгэц
+    app.innerHTML="";
+    const pg=h("div",{className:"center-page",style:{background:"var(--gp)"}});
+    const cd=el("div",{className:"glass scaleIn",style:{maxWidth:"340px",width:"100%",padding:"36px 28px",textAlign:"center"}});
+    if(res&&res.ok){
+      cd.appendChild(h("div",{style:{fontSize:"48px",marginBottom:"12px"}},["✅"]));
+      cd.appendChild(brand(22,false));
+      cd.appendChild(h("div",{style:{fontFamily:"'DM Serif Display',serif",fontSize:"17px",color:"var(--g)",margin:"16px 0 6px"}},["Амжилттай бүртгэгдлээ!"]));
+      cd.appendChild(h("div",{style:{fontSize:"13px",color:"var(--mut)",marginBottom:"8px"}},["Таны мэдээлэл менежерийн HSE → 🚨 Осол хэсэгт бүртгэгдлээ."]));
+      const info=el("div",{style:{background:"#fff5f5",border:"1px solid #fca5a5",borderRadius:"12px",padding:"12px",fontSize:"12px",color:"#7f8c8d",marginBottom:"20px",textAlign:"left"}});
+      info.innerHTML="📍 "+vals.location+"<br>🏢 "+vals.dept+"<br>⚠️ "+vals.incidentType+"<br>🕐 "+toNow();
+      cd.appendChild(info);
+    }else{
+      cd.appendChild(h("div",{style:{fontSize:"48px",marginBottom:"12px"}},["⚠️"]));
+      cd.appendChild(brand(22,false));
+      cd.appendChild(h("div",{style:{fontFamily:"'DM Serif Display',serif",fontSize:"17px",color:"#e67e22",margin:"16px 0 6px"}},["Офлайн горимд хадгалагдлаа"]));
+      cd.appendChild(h("div",{style:{fontSize:"13px",color:"var(--mut)",marginBottom:"20px"}},["Интернет холбогдоход автоматаар илгээгдэнэ."]));
+    }
+    cd.appendChild(el("button",{className:"btn btn-p",onclick:()=>onBack()},["Нүүр хуудас"]));
+    pg.appendChild(cd);app.appendChild(pg);
+
+    // Браузер notification
+    if(Notification.permission==="granted"){
+      try{new Notification("🚨 ХАБЭА — Аюул бүртгэгдлээ",{
+        body:vals.reporterName+" ("+vals.dept+"): "+vals.incidentType,
+        icon:"icon-192x192.png"
+      });}catch(e){}
+    }
+  };
+
+  wrap.appendChild(submitBtn);
+  page.appendChild(wrap);
+  app.appendChild(page);
 }
 
 
@@ -1532,6 +1881,17 @@ function renderVisitorGuide(){
     logs.unshift(log);
     if(logs.length>100) logs.splice(100);
     saveVisitorLogs(logs);
+    // Sheets-д хадгалах (гарын үсэг хамт)
+    postToSheets({
+      action: "addVisitor",
+      name:    log.name,
+      org:     log.org,
+      date:    log.date,
+      time:    log.time,
+      checked: String(log.checked),
+      items:   String(log.items),
+      signature: log.signature||""
+    }).catch(()=>{}); // Offline бол алгасна
     // Амжилтын хуудас
     app.innerHTML="";
     const pg=h("div",{className:"center-page",style:{background:"var(--gp)"}});
@@ -2056,10 +2416,8 @@ function renderWorkerForm(onDone,onBack){
         sigCtx.save();sigCtx.globalAlpha=0.22;sigCtx.fillStyle="#1a6a3a";sigCtx.font="bold 11px sans-serif";
         sigCtx.fillText(state.name.trim()+" | "+toDay(),6,sigCanvas.height-6);sigCtx.restore();
       }
-      // Цаг: гарын үсэг зурж буй БОДИТ Улаанбаатарын цаг
-      // sv-SE locale → timezone-с үл хамаарч үргэлж зөв
-      const _s2=new Date().toLocaleString("sv-SE",{timeZone:"Asia/Ulaanbaatar"});
-      const _signTime=_s2.split(" ")[1].substring(0,5); // "HH:MM"
+      // Цаг: sv-SE UB цаг — дэлгэцтэй яг ижил
+      const _signTime=toNow();
       const rec={name:state.name.trim(),department:state.department.trim(),position:state.position.trim(),phone:state.phone.trim(),date:toDay(),time:_signTime,passed,instrRead:state.instrRead,checkedCount:state.checked.size,signature:(()=>{const _tc=document.createElement("canvas");_tc.width=sigCanvas.width;_tc.height=sigCanvas.height;const _tx=_tc.getContext("2d");_tx.fillStyle="#ffffff";_tx.fillRect(0,0,_tc.width,_tc.height);_tx.drawImage(sigCanvas,0,0);return _tc.toDataURL("image/jpeg",0.8);})()};
       const recs=getRecs();recs.push(rec);saveRecs(recs);
       // Утасны дугаар шинэчлэгдэх (байгаа ажилтанд), шинэ ажилтан нэмэх
@@ -2099,6 +2457,7 @@ function renderSuccess(rec,onHome){
 function renderManager(onLogout){
   const app=document.getElementById("app");
   let tab="dashboard";
+  let hseSubTab="dashboard"; // HSE дэд таб state
   let selDate=toDay();
   let rt=setInterval(()=>{if(tab==="today")render();},10000);
   let _lastAct=Date.now();
@@ -2125,11 +2484,19 @@ function renderManager(onLogout){
     const local=getWrks();
     const seen=new Set(local.map(w=>normName(w.name)));
     const bl=new Set(getBlacklist().map(b=>normName(b.name)));
-    let added=0;
+    let changed=false;
+    // Sheets-аас ирсэн ажилтнуудыг нэмэх — blacklist шалгаж
     ws.forEach(w=>{
-      if(!seen.has(normName(w.name))&&!bl.has(normName(w.name))){local.push(w);seen.add(normName(w.name));added++;}
+      if(bl.has(normName(w.name)))return; // Blacklist → нэмэхгүй
+      if(!seen.has(normName(w.name))){
+        local.push(w);seen.add(normName(w.name));changed=true;
+      }
     });
-    if(added>0)saveWrks(local);
+    // LocalStorage-д blacklist-д орсон ажилтнуудыг устгах
+    const cleanLocal=local.filter(w=>!bl.has(normName(w.name)));
+    if(changed||cleanLocal.length!==local.length){
+      saveWrks(cleanLocal);
+    }
   }
 
   function showAttendanceModal(workerName){
@@ -2195,7 +2562,7 @@ function renderManager(onLogout){
     const signedSet=new Set(todayRecs.map(r=>normName(r.name)));
     const unsigned=workers.filter(w=>!signedSet.has(normName(w.name)));
     const dateRecs=recs.filter(r=>r.date===selDate);
-    const TABS=[{id:"dashboard",l:"🏠 Хянах"},{id:"today",l:"📊 Өнөөдөр"},{id:"report",l:"📋 Тайлан"},{id:"workers",l:"👥 Ажилтан"},{id:"visitors",l:"🏭 Зочид"},{id:"settings",l:"⚙️ Тохиргоо"}];
+    const TABS=[{id:"dashboard",l:"🏠 Хянах"},{id:"today",l:"📊 Өнөөдөр"},{id:"report",l:"📋 Тайлан"},{id:"workers",l:"👥 Ажилтан"},{id:"visitors",l:"🏭 Зочид"},{id:"hse",l:"🛡️ HSE"},{id:"settings",l:"⚙️ Тохиргоо"}];
     const page=el("div",{className:"page"});
     const hdr=el("div",{className:"mgr-hdr"});
     const ht=h("div",{style:{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:"10px"}});
@@ -2355,12 +2722,14 @@ function renderManager(onLogout){
 
     // ══════ TODAY ══════
     else if(tab==="today"){
-      const sb=el("div",{className:"sync-bar fadeUp"});
-      sb.innerHTML='<span class="spin">🔄</span> Sheets-ээс шинэчлэж байна...';body.appendChild(sb);
+      // Sheets синк async — дуусаад render дахин хийнэ
       fetchTodayFromSheets(toDay()).then(remote=>{
-        sb.innerHTML=remote.length?`☁️ Sheets-ийн ${remote.length} бүртгэл нэгтгэгдлээ`:"☁️ Sheets синк хийгдлээ";
-        setTimeout(()=>sb.remove(),3000);
-      }).catch(()=>{sb.remove();});
+        if(remote&&remote.length>0){
+          const merged=mergeRecords(getRecs(),remote);
+          saveRecs(merged);
+          render(); // Шинэ өгөгдлөөр дахин харуулах
+        }
+      }).catch(()=>{});
       if(Notification.permission==="default"){
         const nb=el("div",{className:"n-banner fadeUp"});
         nb.innerHTML='🔔 <span style="flex:1">09:15-д браузер анхааруулга авах</span>';
@@ -2538,6 +2907,7 @@ function renderManager(onLogout){
               if(!confirm(`"${w.name}" хасах уу?`))return;
               addToBlacklist(w);
               const ws=getWrks();ws.splice(i,1);saveWrks(ws);
+              saveNewWorkers(getNewWorkers().filter(x=>normName(x.name)!==normName(w.name)));
               syncWorkers(ws);
               toast(`"${w.name}" хасагдлаа`,"info");render();
             };
@@ -2623,6 +2993,171 @@ function renderManager(onLogout){
         });
       }
       body.appendChild(blCard);
+    }
+
+    // ══════ HSE СИСТЕМ ══════
+    else if(tab==="hse"){
+      // HSE дэд табууд
+      const HSE_SUBTABS=[
+        {id:"dashboard", l:"📊 Хянах"},
+        {id:"incidents", l:"🚨 Осол"},
+        {id:"nearMiss",  l:"⚠️ Дөхсөн"},
+        {id:"inspection",l:"🔍 Шалгалт"},
+        {id:"training",  l:"📚 Сургалт"},
+        {id:"actions",   l:"✅ Арга хэмжээ"},
+        {id:"ppe",       l:"🦺 PPE"},
+        {id:"permit",    l:"📋 Permit"},
+      ];
+      if(!hseSubTab) hseSubTab="dashboard";
+
+      // Дэд таб row
+      const hseTabRow=el("div",{style:{
+        display:"flex",gap:"4px",flexWrap:"wrap",
+        marginBottom:"14px",overflowX:"auto"
+      }});
+      HSE_SUBTABS.forEach(st=>{
+        const btn=el("button",{style:{
+          padding:"6px 10px",border:"1.5px solid",borderRadius:"20px",
+          fontSize:"11px",fontWeight:"700",cursor:"pointer",
+          fontFamily:"'DM Sans',sans-serif",whiteSpace:"nowrap",
+          borderColor:hseSubTab===st.id?"var(--g)":"var(--bdr)",
+          background:hseSubTab===st.id?"var(--g)":"var(--wh)",
+          color:hseSubTab===st.id?"#fff":"var(--mut)"
+        }},[st.l]);
+        btn.onclick=()=>{hseSubTab=st.id;render();};
+        hseTabRow.appendChild(btn);
+      });
+      body.appendChild(hseTabRow);
+
+      // ── HSE Dashboard ──
+      if(hseSubTab==="dashboard"){
+        const loadDiv=el("div",{className:"sync-bar"},[" 🔄 HSE өгөгдөл татаж байна..."]);
+        body.appendChild(loadDiv);
+        getFromSheets({action:"getHSEDashboard"}).then(res=>{
+          loadDiv.remove();
+          const d=res.data||{};
+          // KPI карт
+          const kpiGrid=el("div",{style:{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"8px",marginBottom:"14px"}});
+          [
+            {ico:"🚨",lbl:"Нийт осол",val:d.incidents||0,c:"#e74c3c"},
+            {ico:"🔴",lbl:"Нээлттэй осол",val:d.incidentsOpen||0,c:"#c0392b"},
+            {ico:"⚠️",lbl:"Дөхсөн тохиолдол",val:d.nearMiss||0,c:"#e67e22"},
+            {ico:"🔍",lbl:"Шалгалт",val:d.inspections||0,c:"#2980b9"},
+            {ico:"📚",lbl:"Сургалт",val:d.training||0,c:"#8e44ad"},
+            {ico:"✅",lbl:"Нээлттэй арга хэмжээ",val:d.actionsOpen||0,c:"#27ae60"},
+            {ico:"✔️",lbl:"Хаагдсан арга хэмжээ",val:d.actionsClosed||0,c:"#1a6a3a"},
+            {ico:"🦺",lbl:"PPE бүртгэл",val:d.ppe||0,c:"#16a085"},
+            {ico:"📋",lbl:"Permit",val:d.permits||0,c:"#2c3e50"},
+            {ico:"👥",lbl:"Зочдын бүртгэл",val:d.visitors||0,c:"var(--g)"},
+          ].forEach(k=>{
+            const bx=el("div",{style:{
+              background:"#fff",border:"1px solid var(--bdr)",
+              borderRadius:"14px",padding:"14px 10px",textAlign:"center"
+            }});
+            bx.appendChild(h("div",{style:{fontSize:"20px",marginBottom:"4px"}},[k.ico]));
+            bx.appendChild(h("div",{style:{
+              fontFamily:"'DM Serif Display',serif",fontSize:"28px",
+              color:k.c,lineHeight:"1"
+            }},[String(k.val)]));
+            bx.appendChild(h("div",{style:{
+              fontSize:"10px",color:"var(--mut)",fontWeight:"700",
+              letterSpacing:".04em",marginTop:"4px"
+            }},[k.lbl]));
+            kpiGrid.appendChild(bx);
+          });
+          body.appendChild(kpiGrid);
+
+          // Осол байхгүй хоног тооцоолох
+          const daysSafe=el("div",{className:"card",style:{
+            background:"linear-gradient(135deg,var(--gd),var(--g))",
+            textAlign:"center",padding:"20px"
+          }});
+          daysSafe.appendChild(h("div",{style:{color:"rgba(255,255,255,.6)",fontSize:"12px",marginBottom:"4px"}},["🏆 ОСОЛГҮЙ АЖИЛЛАСАН ХОНОГ"]));
+          daysSafe.appendChild(h("div",{style:{
+            fontFamily:"'DM Serif Display',serif",fontSize:"48px",
+            color:"#fff",lineHeight:"1"
+          }},["—"]));
+          daysSafe.appendChild(h("div",{style:{color:"rgba(255,255,255,.5)",fontSize:"11px",marginTop:"4px"}},["Осол бүртгэгдэх бүр автоматаар тооцоолно"]));
+          body.appendChild(daysSafe);
+        }).catch(()=>{
+          loadDiv.remove();
+          body.appendChild(h("div",{className:"card",style:{textAlign:"center",color:"var(--mut)",padding:"20px"}},["Интернет холболт шаардлагатай"]));
+        });
+      }
+
+      // ── Жагсаалт дэд табууд ──
+      else if(["incidents","nearMiss","inspection","training","actions","ppe","permit"].includes(hseSubTab)){
+        const subInfo={
+          incidents: {lbl:"🚨 Осол бүртгэл", color:"#e74c3c", cols:["Огноо","Байршил","Хэлтэс","Осолын төрөл","Хохирлын зэрэг","Хариуцсан","Статус"]},
+          nearMiss:  {lbl:"⚠️ Дөхсөн тохиолдол", color:"#e67e22", cols:["Огноо","Байршил","Хэлтэс","Тайлбар","Хариуцсан","Статус"]},
+          inspection:{lbl:"🔍 Шалгалт", color:"#2980b9", cols:["Огноо","Шалгалтын төрөл","Байршил","Шалгасан хүн","Хүнд","Дунд","Хөнгөн","Статус"]},
+          training:  {lbl:"📚 Сургалт", color:"#8e44ad", cols:["Огноо","Сургалтын нэр","Хэлтэс","Оролцогч","Цаг","Багш","Статус"]},
+          actions:   {lbl:"✅ Арга хэмжээ", color:"#27ae60", cols:["Эх үүсвэр","Огноо","Арга хэмжээ","Хэлтэс","Хариуцсан","Дуусах огноо","Гүйцэтгэл","Статус"]},
+          ppe:       {lbl:"🦺 PPE бүртгэл", color:"#16a085", cols:["Огноо","Ажилтан","Хэлтэс","PPE төрөл","Тоо","Дуусах огноо","Нөхцөл"]},
+          permit:    {lbl:"📋 Permit to Work", color:"#2c3e50", cols:["Permit №","Огноо","Ажлын нэр","Байршил","Хариуцсан","Статус"]},
+        };
+        const si=subInfo[hseSubTab];
+
+        // Нэмэх товч
+        const addBtn=el("button",{className:"btn btn-p btn-sm",style:{marginBottom:"12px"}},["+ Шинэ бүртгэл нэмэх"]);
+        addBtn.onclick=()=>showHSEForm(hseSubTab,()=>render());
+        body.appendChild(addBtn);
+
+        // Жагсаалт татах
+        const loadDiv2=el("div",{className:"sync-bar"},[" 🔄 Татаж байна..."]);
+        body.appendChild(loadDiv2);
+
+        getFromSheets({action:"getHSESheet",sheet:window._hseSubTab,limit:"100"}).then(res=>{
+          loadDiv2.remove();
+          const recs=res.records||[];
+          const card=el("div",{className:"card",style:{padding:"0",overflow:"hidden"}});
+          const titleRow=h("div",{style:{
+            padding:"12px 14px",borderBottom:"1px solid var(--bdr)",
+            display:"flex",alignItems:"center",justifyContent:"space-between"
+          }},[
+            h("div",{style:{fontFamily:"'DM Serif Display',serif",fontSize:"14px",color:si.color}},[si.lbl]),
+            h("div",{style:{fontSize:"11px",color:"var(--mut)"}},[recs.length+" бүртгэл"])
+          ]);
+          card.appendChild(titleRow);
+
+          if(!recs.length){
+            card.appendChild(h("div",{style:{
+              padding:"24px",textAlign:"center",color:"var(--mut)",fontSize:"13px"
+            }},["Бүртгэл байхгүй — + товч дарж нэмнэ үү"]));
+          } else {
+            recs.slice(0,50).forEach((r,idx)=>{
+              const row=el("div",{style:{
+                padding:"10px 14px",borderBottom:"1px solid var(--gp)",
+                fontSize:"12px",display:"flex",alignItems:"flex-start",gap:"10px"
+              }});
+              // №
+              row.appendChild(h("div",{style:{
+                minWidth:"24px",height:"24px",borderRadius:"50%",
+                background:si.color,color:"#fff",fontSize:"10px",fontWeight:"700",
+                display:"flex",alignItems:"center",justifyContent:"center",flexShrink:"0"
+              }},[String(idx+1)]));
+              // Мэдээлэл
+              const info=el("div",{style:{flex:"1"}});
+              // Эхний 2 багана том харуулах
+              const keys=Object.keys(r);
+              if(keys[1]) info.appendChild(h("div",{style:{fontWeight:"700",color:"var(--ink)",marginBottom:"2px"}},[String(r[keys[1]]||"")]));
+              if(keys[2]) info.appendChild(h("div",{style:{fontSize:"11px",color:"var(--mut)"}},[String(r[keys[2]]||"")]));
+              // Статус badge
+              const statusVal=r["Статус"]||"";
+              if(statusVal){
+                const statusC=statusVal==="Хаагдсан"?"bg-g":statusVal==="Нээлттэй"?"bg-r":"bg-b";
+                info.appendChild(el("div",{className:"badge "+statusC,style:{marginTop:"4px"}},[statusVal]));
+              }
+              row.appendChild(info);
+              card.appendChild(row);
+            });
+          }
+          body.appendChild(card);
+        }).catch(()=>{
+          loadDiv2.remove();
+          body.appendChild(h("div",{className:"card",style:{textAlign:"center",color:"var(--mut)",padding:"20px"}},["Холболт алдаа гарлаа"]));
+        });
+      }
     }
 
     // ══════ VISITORS ══════
