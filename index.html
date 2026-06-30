@@ -1500,8 +1500,10 @@ function showHSEForm(type, onDone) {
     } else {
       saveBtn.disabled=false; saveBtn.textContent="💾 Хадгалах";
       const errMsg = (res&&res.error)||"Алдаа гарлаа";
-      toast("❌ "+errMsg+". Deploy шинэчлэгдсэн үү?","err");
-      console.error("HSE save error:", res);
+      const ver = (res&&res._version) ? " [AS:"+res._version+"]" : " [AS: HUUCHIN DEPLOY!]";
+      toast("❌ "+errMsg+ver,"err");
+      console.error("HSE save error:", res, "payload:", payload);
+      alert("Алдаа: "+errMsg+"\n\nAction явуулсан: "+payload.action+"\nAS хариу: "+JSON.stringify(res));
     }
   };
 
