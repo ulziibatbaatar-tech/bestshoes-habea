@@ -3116,7 +3116,7 @@ function renderManager(onLogout){
         const loadDiv2=el("div",{className:"sync-bar"},[" 🔄 Татаж байна..."]);
         body.appendChild(loadDiv2);
 
-        getFromSheets({action:"getHSESheet",sheet:window._hseSubTab,limit:"100"}).then(res=>{
+        getFromSheets({action:"getHSESheet",sheet:hseSubTab,limit:"100"}).then(res=>{
           loadDiv2.remove();
           const recs=res.records||[];
           const card=el("div",{className:"card",style:{padding:"0",overflow:"hidden"}});
