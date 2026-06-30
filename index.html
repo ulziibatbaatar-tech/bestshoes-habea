@@ -424,9 +424,18 @@ function startAlertTimer(){
 // ════════════════════════════════════════════════════════════
 async function postToSheets(payload){
   try{
-    const res=await fetch(SCRIPT_URL,{method:"POST",headers:{"Content-Type":"text/plain"},body:JSON.stringify(payload)});
+    const hasSig=payload.signature&&String(payload.signature).length>200;
+    if(hasSig){
+      const res=await fetch(SCRIPT_URL,{method:"POST",headers:{"Content-Type":"text/plain"},body:JSON.stringify(payload)});
+      return await res.json();
+    }
+    const params=new URLSearchParams();
+    Object.entries(payload).forEach(([k,v])=>{
+      if(v!==undefined&&v!==null) params.append(k,String(v));
+    });
+    const res=await fetch(SCRIPT_URL+"?"+params.toString());
     return await res.json();
-  }catch(e){return{ok:false,error:e.message};}
+  }catch(e){return {ok:false,error:e.message};}
 }
 async function getFromSheets(params){
   try{
