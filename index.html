@@ -1300,7 +1300,19 @@ function renderHome(){
     gap:"8px"
   }},["🏭  Зочдод өгөх зааварчилгаа"]);
   visitorBtn.onclick=()=>renderVisitorGuide();
-  bw.appendChild(bs);bw.appendChild(hazardBtn);bw.appendChild(visitorBtn);bw.appendChild(shareBtn);bw.appendChild(bm);inner.appendChild(bw);
+  // 📋 Зааварчилгааны бүртгэл товч
+  const instrBtn=el("button",{style:{
+    padding:"14px",background:"rgba(255,255,255,.08)",
+    color:"rgba(255,255,255,.85)",border:"1px solid rgba(255,255,255,.25)",
+    borderRadius:"12px",fontSize:"14px",fontWeight:"700",
+    fontFamily:"'DM Sans',sans-serif",cursor:"pointer",width:"100%",
+    display:"flex",alignItems:"center",justifyContent:"center",gap:"8px"
+  }},["📋  Зааварчилгааны бүртгэл"]);
+  instrBtn.onclick=()=>{
+    // PIN шалгалт — зөвхөн эрх бүхий хүн нэвтэрнэ
+    showInstrPin(()=>renderInstrLog());
+  };
+  bw.appendChild(bs);bw.appendChild(hazardBtn);bw.appendChild(instrBtn);bw.appendChild(visitorBtn);bw.appendChild(shareBtn);bw.appendChild(bm);inner.appendChild(bw);
   inner.appendChild(h("div",{style:{color:"rgba(255,255,255,.15)",fontSize:"11px",marginTop:"32px"}},["BEST SHOES LLC — ХАБЭА Цахим бүртгэл"]));
   page.appendChild(inner);app.appendChild(page);
   reqNotif().then(()=>startAlertTimer());
@@ -1345,6 +1357,492 @@ function renderHome(){
     const _cleanW=local.filter(w=>!bl.has(normName(w.name)));
     if(changed||_cleanW.length!==local.length)saveWrks(_cleanW);
   }).catch(()=>{});
+}
+
+
+// ════════════════════════════════════════════════════════════
+// 🔐 ЗААВАРЧИЛГААНЫ БҮРТГЭЛИЙН PIN ШАЛГАЛТ
+// ════════════════════════════════════════════════════════════
+function showInstrPin(onSuccess){
+  const app=document.getElementById("app");
+  const overlay=el("div",{style:{
+    position:"fixed",inset:"0",background:"rgba(0,0,0,.6)",
+    display:"flex",alignItems:"center",justifyContent:"center",
+    zIndex:"9999",backdropFilter:"blur(4px)"
+  }});
+
+  const box=el("div",{className:"glass scaleIn",style:{
+    maxWidth:"320px",width:"90%",padding:"32px 24px",textAlign:"center"
+  }});
+
+  box.appendChild(h("div",{style:{fontSize:"32px",marginBottom:"8px"}},["🔐"]));
+  box.appendChild(h("div",{style:{
+    fontFamily:"'DM Serif Display',serif",fontSize:"16px",
+    color:"var(--g)",marginBottom:"4px"
+  }},["Зааварчилгааны бүртгэл"]));
+  box.appendChild(h("div",{style:{
+    fontSize:"12px",color:"var(--mut)",marginBottom:"20px"
+  }},["Нэвтрэхийн тулд PIN код оруулна уу"]));
+
+  // PIN оруулах
+  const pinInp=el("input",{style:{
+    width:"100%",padding:"14px",textAlign:"center",
+    fontSize:"24px",letterSpacing:"8px",fontFamily:"'DM Serif Display',serif",
+    border:"2px solid var(--bdr)",borderRadius:"12px",
+    background:"#fff",color:"var(--ink)",marginBottom:"8px",
+    outline:"none"
+  },type:"password",maxLength:"6",placeholder:"• • • •"});
+
+  const errMsg=h("div",{style:{
+    fontSize:"12px",color:"#e74c3c",marginBottom:"12px",minHeight:"18px"
+  }},["‌"]);
+
+  box.appendChild(pinInp);
+  box.appendChild(errMsg);
+
+  // Товчнууд
+  const btns=h("div",{style:{display:"flex",gap:"8px"}});
+
+  const cancelBtn=el("button",{className:"btn btn-o",style:{flex:"1"}},["Цуцлах"]);
+  cancelBtn.onclick=()=>overlay.remove();
+
+  const enterBtn=el("button",{className:"btn btn-p",style:{flex:"1"}},["Нэвтрэх"]);
+  enterBtn.onclick=async()=>{
+    const pin=pinInp.value.trim();
+    if(!pin){errMsg.textContent="PIN оруулна уу";return;}
+
+    // PIN шалгах — менежерийн PIN-тэй ижил логик
+    const cfg=lsGet(K.cfg)||{};
+    const storedHash=cfg.pinHash||"";
+
+    // Default PIN: 9761
+    let targetHash=storedHash;
+    if(!storedHash){
+      // Хадгалагдсан hash байхгүй бол default 9761
+      const enc=new TextEncoder();
+      const buf=await crypto.subtle.digest("SHA-256",enc.encode("9761"));
+      targetHash=Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2,"0")).join("");
+    }
+
+    const enc=new TextEncoder();
+    const buf=await crypto.subtle.digest("SHA-256",enc.encode(pin));
+    const hash=Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2,"0")).join("");
+
+    if(hash===targetHash){
+      overlay.remove();
+      onSuccess();
+    }else{
+      errMsg.textContent="PIN буруу байна. Дахин оруулна уу.";
+      pinInp.value="";
+      pinInp.focus();
+      pinInp.style.border="2px solid #e74c3c";
+      setTimeout(()=>{pinInp.style.border="2px solid var(--bdr)";},1000);
+    }
+  };
+
+  // Enter товч дарахад
+  pinInp.addEventListener("keydown",e=>{if(e.key==="Enter")enterBtn.onclick();});
+
+  btns.appendChild(cancelBtn);
+  btns.appendChild(enterBtn);
+  box.appendChild(btns);
+  overlay.appendChild(box);
+  overlay.onclick=e=>{if(e.target===overlay)overlay.remove();};
+  document.body.appendChild(overlay);
+  setTimeout(()=>pinInp.focus(),100);
+}
+
+
+// ════════════════════════════════════════════════════════════
+// 📋 АНХАН ШАТНЫ ЗААВАРЧИЛГААНЫ БҮРТГЭЛ (Хуульд нийцсэн)
+// МУ ХӨДӨЛМӨРИЙН АЮУЛГҮЙ БАЙДАЛ, ЭРҮҮЛ АХУЙН ХУУЛЬ 2008
+// ════════════════════════════════════════════════════════════
+const INSTR_LOG_KEY = "habea_instr_log_v1";
+function getInstrLogs(){ return lsGet(INSTR_LOG_KEY)||[]; }
+function saveInstrLogs(v){ lsSet(INSTR_LOG_KEY,v); }
+
+// Зааварчилгааны агуулга — хуульд заасан стандарт
+const INSTR_CONTENTS = [
+  "1. Ажлын байрны аюулгүй ажиллагааны үндсэн шаардлага",
+  "2. Хөдөлмөрийн дотоод журам, ажилтны эрх, үүрэг",
+  "3. Ажлын байрны аюул, хор нөлөө, тэдгээрээс хамгаалах арга",
+  "4. Хувийн хамгаалах хэрэгсэл (ХХХ) хэрэглэх заавар",
+  "5. Тоног төхөөрөмж, машин механизм аюулгүй ашиглах",
+  "6. Химийн бодис, аюултай материалтай ажиллах журам",
+  "7. Гал унтраах хэрэгсэл хэрэглэх, галын аюулгүй ажиллагаа",
+  "8. Осол, гэмтлийн үеийн анхны тусламж үзүүлэх",
+  "9. Онцгой байдал, нүүлгэн шилжүүлэх журам",
+  "10. Байгаль орчны хамгаалал, хог хаягдал зайлуулах",
+];
+
+function renderInstrLog(){
+  const app=document.getElementById("app"); app.innerHTML="";
+  const page=el("div",{className:"page",style:{background:"var(--gp)"}});
+
+  // Header
+  const hdr=h("div",{style:{
+    background:"linear-gradient(135deg,var(--gd),var(--g))",
+    padding:"14px 16px",display:"flex",alignItems:"center",justifyContent:"space-between"
+  }});
+  const bb=el("button",{style:{
+    background:"rgba(255,255,255,.1)",border:"1px solid rgba(255,255,255,.2)",
+    color:"#fff",borderRadius:"8px",padding:"6px 12px",
+    cursor:"pointer",fontSize:"13px",fontFamily:"inherit"
+  }},["← Буцах"]);
+  bb.onclick=()=>renderHome();
+  hdr.appendChild(bb);
+  hdr.appendChild(h("div",{style:{
+    fontFamily:"'DM Serif Display',serif",fontSize:"14px",color:"#fff",textAlign:"center",flex:"1"
+  }},["📋 Зааварчилгааны бүртгэл"]));
+  hdr.appendChild(h("div",{style:{width:"60px"}}));
+  page.appendChild(hdr);
+
+  const wrap=h("div",{style:{maxWidth:"560px",margin:"0 auto",padding:"16px 16px 120px"}});
+
+  // Гарчиг карт — хуулийн мэдээлэлтэй
+  const titleCard=el("div",{style:{
+    background:"linear-gradient(135deg,var(--gd),var(--g))",
+    borderRadius:"16px",padding:"16px",marginBottom:"14px"
+  }});
+  titleCard.innerHTML=`
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
+      <div style="font-size:24px">📋</div>
+      <div>
+        <div style="font-family:'DM Serif Display',serif;font-size:14px;color:#fff">АНХАН ШАТНЫ ЗААВАРЧИЛГААНЫ БҮРТГЭЛ</div>
+        <div style="font-size:10px;color:rgba(255,255,255,.6)">BEST SHOES ХХК · ХАБЭА · МУ ХХАБЭАХ 2008</div>
+      </div>
+    </div>
+    <div style="background:rgba(0,0,0,.15);border-radius:8px;padding:8px;font-size:11px;color:rgba(255,255,255,.7);line-height:1.6">
+      Зааварчилгааны бүртгэлийг <b style="color:#fff">5 жил</b> хадгалах шаардлагатай.<br>
+      Шинэ ажилтан бүрт <b style="color:#fff">ажилд орохын өмнө</b> анхан шатны зааварчилгаа заавал өгнө.
+    </div>`;
+  wrap.appendChild(titleCard);
+
+  const vals={};
+
+  // ── 1. АЖИЛТНЫ МЭДЭЭЛЭЛ ──
+  const sec1=el("div",{className:"card fadeUp"});
+  sec1.appendChild(h("div",{style:{
+    fontFamily:"'DM Serif Display',serif",fontSize:"13px",
+    color:"var(--g)",marginBottom:"12px",
+    borderBottom:"2px solid var(--gp)",paddingBottom:"8px"
+  }},["👤 1. Зааварчилгаа авсан ажилтны мэдээлэл"]));
+
+  // Овог нэр
+  const nw=el("div",{style:{marginBottom:"10px"}});
+  nw.appendChild(h("div",{className:"inp-label"},["Овог нэр *"]));
+  const nameInp=el("input",{className:"inp",type:"text",placeholder:"Овог Нэр"});
+  nameInp.oninput=()=>{vals.name=nameInp.value;};
+  nw.appendChild(nameInp); sec1.appendChild(nw);
+
+  // Ажлын байр, тасаг
+  const deptRow=h("div",{style:{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"8px",marginBottom:"10px"}});
+  const dw=el("div");
+  dw.appendChild(h("div",{className:"inp-label"},["Тасаг *"]));
+  const deptSel=el("select",{className:"sel"});
+  deptSel.appendChild(Object.assign(el("option",{value:""},[" — Сонгох — "]),{disabled:true,selected:true}));
+  ["Гүйцэтгэл","Оёдол","Гоёл","Санхүү","Эсгүүр","Захиргаа"].forEach(d=>deptSel.appendChild(el("option",{value:d},[d])));
+  deptSel.onchange=()=>{vals.dept=deptSel.value;};
+  dw.appendChild(deptSel); deptRow.appendChild(dw);
+
+  const pw=el("div");
+  pw.appendChild(h("div",{className:"inp-label"},["Ажил, албан тушаал *"]));
+  const posInp=el("input",{className:"inp",type:"text",placeholder:"Тушаал"});
+  posInp.oninput=()=>{vals.position=posInp.value;};
+  pw.appendChild(posInp); deptRow.appendChild(pw);
+  sec1.appendChild(deptRow);
+
+  // Ажилд орсон огноо
+  const ew=el("div",{style:{marginBottom:"10px"}});
+  ew.appendChild(h("div",{className:"inp-label"},["Ажилд орсон огноо"]));
+  const entryInp=el("input",{className:"inp",type:"date",value:mnToISO(toDay())});
+  entryInp.onchange=()=>{vals.entryDate=isoToMn(entryInp.value);};
+  vals.entryDate=toDay();
+  ew.appendChild(entryInp); sec1.appendChild(ew);
+  wrap.appendChild(sec1);
+
+  // ── 2. ЗААВАРЧИЛГААНЫ МЭДЭЭЛЭЛ ──
+  const sec2=el("div",{className:"card fadeUp"});
+  sec2.appendChild(h("div",{style:{
+    fontFamily:"'DM Serif Display',serif",fontSize:"13px",
+    color:"var(--g)",marginBottom:"12px",
+    borderBottom:"2px solid var(--gp)",paddingBottom:"8px"
+  }},["📚 2. Зааварчилгааны мэдээлэл"]));
+
+  // Зааварчилгааны төрөл
+  const tw=el("div",{style:{marginBottom:"12px"}});
+  tw.appendChild(h("div",{className:"inp-label"},["Зааварчилгааны төрөл *"]));
+  const typeSel=el("select",{className:"sel"});
+  typeSel.appendChild(Object.assign(el("option",{value:""},[" — Сонгох — "]),{disabled:true,selected:true}));
+  [
+    {v:"Анхан шатны",l:"1. Анхан шатны зааварчилгаа (ажилд орохдоо)"},
+    {v:"Давтан",l:"2. Давтан зааварчилгаа (3 сар тутам)"},
+    {v:"Нэмэлт",l:"3. Нэмэлт зааварчилгаа (осол болсны дараа)"},
+    {v:"Ажлын байрны",l:"4. Ажлын байрны зааварчилгаа (шинэ ажил)"},
+  ].forEach(({v,l})=>{
+    typeSel.appendChild(el("option",{value:v},[l]));
+  });
+  typeSel.onchange=()=>{vals.instrType=typeSel.value;};
+  tw.appendChild(typeSel); sec2.appendChild(tw);
+
+  // Зааварчилгааны агуулга (олон сонголт)
+  sec2.appendChild(h("div",{className:"inp-label",style:{marginBottom:"8px"}},["Зааварчилгааны агуулга * (хамаарах бүгдийг тэмдэглэх)"]));
+  const checkedContents=new Set();
+  const contentWrap=el("div",{style:{marginBottom:"12px"}});
+  INSTR_CONTENTS.forEach((t,i)=>{
+    const row=el("div",{style:{
+      display:"flex",alignItems:"center",gap:"10px",
+      padding:"8px 10px",borderRadius:"8px",cursor:"pointer",
+      marginBottom:"3px",background:"#fff",border:"1.5px solid var(--bdr)",
+      transition:"all .12s"
+    }});
+    const box=el("div",{style:{
+      width:"20px",height:"20px",minWidth:"20px",border:"2px solid var(--bdr)",
+      borderRadius:"5px",display:"flex",alignItems:"center",justifyContent:"center"
+    }});
+    row.appendChild(box);
+    row.appendChild(h("div",{style:{fontSize:"12px",color:"var(--ink)",lineHeight:"1.4"}},[t]));
+    row.onclick=()=>{
+      if(checkedContents.has(i)){
+        checkedContents.delete(i);
+        box.style.background="";box.style.borderColor="var(--bdr)";box.innerHTML="";
+        row.style.background="#fff";row.style.borderColor="var(--bdr)";
+      }else{
+        checkedContents.add(i);
+        box.style.background="var(--g)";box.style.borderColor="var(--g)";
+        box.innerHTML=chk();
+        row.style.background="var(--gp)";row.style.borderColor="var(--g)";
+      }
+      vals.contents=[...checkedContents].map(x=>INSTR_CONTENTS[x]).join(" | ");
+    };
+    contentWrap.appendChild(row);
+  });
+  sec2.appendChild(contentWrap);
+
+  // Зааварчилгааны дугаар (дэвтрийн)
+  const nrw=el("div",{style:{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"8px",marginBottom:"10px"}});
+  const nr1=el("div");
+  nr1.appendChild(h("div",{className:"inp-label"},["Бүртгэлийн дугаар"]));
+  const numInp=el("input",{className:"inp",type:"text",placeholder:"№"});
+  numInp.oninput=()=>{vals.logNum=numInp.value;};
+  nr1.appendChild(numInp); nrw.appendChild(nr1);
+
+  const nr2=el("div");
+  nr2.appendChild(h("div",{className:"inp-label"},["Зааварчилгааны огноо *"]));
+  const dateInp=el("input",{className:"inp",type:"date",value:mnToISO(toDay())});
+  dateInp.onchange=()=>{vals.instrDate=isoToMn(dateInp.value);};
+  vals.instrDate=toDay();
+  nr2.appendChild(dateInp); nrw.appendChild(nr2);
+  sec2.appendChild(nrw);
+
+  // Шалгалтын дүн
+  const sw=el("div",{style:{marginBottom:"10px"}});
+  sw.appendChild(h("div",{className:"inp-label"},["Шалгалтын дүн *"]));
+  const scoreSel=el("select",{className:"sel"});
+  scoreSel.appendChild(Object.assign(el("option",{value:""},[" — Сонгох — "]),{disabled:true,selected:true}));
+  ["Тэнцсэн","Дутуу — дахин авна"].forEach(s=>scoreSel.appendChild(el("option",{value:s},[s])));
+  scoreSel.onchange=()=>{vals.score=scoreSel.value;};
+  sw.appendChild(scoreSel); sec2.appendChild(sw);
+  wrap.appendChild(sec2);
+
+  // ── 3. ГАРЫН ҮСЭГ ──
+  const sec3=el("div",{className:"card fadeUp"});
+  sec3.appendChild(h("div",{style:{
+    fontFamily:"'DM Serif Display',serif",fontSize:"13px",
+    color:"var(--g)",marginBottom:"12px",
+    borderBottom:"2px solid var(--gp)",paddingBottom:"8px"
+  }},["✍️ 3. Гарын үсэг"]));
+
+  // Ажилтны гарын үсэг
+  sec3.appendChild(h("div",{className:"inp-label",style:{marginBottom:"6px"}},["Зааварчилгаа авсан ажилтны гарын үсэг *"]));
+  const sigOuter=el("div",{style:{
+    border:"2px dashed var(--bdr)",borderRadius:"12px",
+    background:"#fff",position:"relative",overflow:"hidden",
+    cursor:"crosshair",height:"110px",marginBottom:"12px"
+  }});
+  const sigCv=el("canvas",{style:{display:"block",width:"100%",height:"110px"}});
+  const sigHint=h("div",{style:{
+    position:"absolute",inset:"0",display:"flex",alignItems:"center",
+    justifyContent:"center",color:"#aaa",fontSize:"13px",pointerEvents:"none"
+  }},["✍️ Ажилтны гарын үсэг"]);
+  const sigClr=el("button",{style:{
+    position:"absolute",top:"6px",right:"6px",background:"rgba(231,76,60,.85)",
+    color:"#fff",border:"none",borderRadius:"6px",padding:"3px 8px",
+    fontSize:"11px",cursor:"pointer",fontFamily:"inherit"
+  }},["Арилгах"]);
+  sigOuter.appendChild(sigCv);sigOuter.appendChild(sigHint);sigOuter.appendChild(sigClr);
+  sec3.appendChild(sigOuter);
+
+  let iCtx,iDrawing=false,iDrawn=false;
+  setTimeout(()=>{
+    sigCv.width=sigOuter.offsetWidth||320;sigCv.height=110;
+    iCtx=sigCv.getContext("2d");
+    iCtx.strokeStyle="#1a2e1f";iCtx.lineWidth=2.5;iCtx.lineCap="round";iCtx.lineJoin="round";
+    function iPos(e){
+      const r=sigCv.getBoundingClientRect();
+      const t=e.touches?e.touches[0]:e;
+      return[(t.clientX-r.left)*(sigCv.width/r.width),(t.clientY-r.top)*(sigCv.height/r.height)];
+    }
+    sigCv.addEventListener("mousedown",e=>{iDrawing=true;const[x,y]=iPos(e);iCtx.beginPath();iCtx.moveTo(x,y);});
+    sigCv.addEventListener("mousemove",e=>{if(!iDrawing)return;iDrawn=true;sigHint.style.opacity="0";const[x,y]=iPos(e);iCtx.lineTo(x,y);iCtx.stroke();});
+    sigCv.addEventListener("mouseup",()=>{iDrawing=false;});
+    sigCv.addEventListener("mouseleave",()=>{iDrawing=false;});
+    sigCv.addEventListener("touchstart",e=>{e.preventDefault();iDrawing=true;const[x,y]=iPos(e);iCtx.beginPath();iCtx.moveTo(x,y);},{passive:false});
+    sigCv.addEventListener("touchmove",e=>{e.preventDefault();if(!iDrawing)return;iDrawn=true;sigHint.style.opacity="0";const[x,y]=iPos(e);iCtx.lineTo(x,y);iCtx.stroke();},{passive:false});
+    sigCv.addEventListener("touchend",()=>{iDrawing=false;});
+  },50);
+  sigClr.onclick=()=>{if(iCtx){iCtx.clearRect(0,0,sigCv.width,sigCv.height);sigHint.style.opacity="1";iDrawn=false;}};
+
+  // Зааварчилгаа өгсөн хүний мэдээлэл
+  const mgrRow=h("div",{style:{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"8px",marginBottom:"10px"}});
+  const m1=el("div");
+  m1.appendChild(h("div",{className:"inp-label"},["Зааварчилгаа өгсөн хүний нэр *"]));
+  const mgrNameInp=el("input",{className:"inp",type:"text",placeholder:"Нэр"});
+  mgrNameInp.oninput=()=>{vals.instrGiver=mgrNameInp.value;};
+  m1.appendChild(mgrNameInp); mgrRow.appendChild(m1);
+
+  const m2=el("div");
+  m2.appendChild(h("div",{className:"inp-label"},["Тушаал *"]));
+  const mgrPosInp=el("input",{className:"inp",type:"text",placeholder:"Албан тушаал"});
+  mgrPosInp.oninput=()=>{vals.instrGiverPos=mgrPosInp.value;};
+  m2.appendChild(mgrPosInp); mgrRow.appendChild(m2);
+  sec3.appendChild(mgrRow);
+
+  // Зааварчилгаа өгсөн хүний гарын үсэг
+  sec3.appendChild(h("div",{className:"inp-label",style:{marginBottom:"6px"}},["Зааварчилгаа өгсөн хүний гарын үсэг *"]));
+  const sig2Outer=el("div",{style:{
+    border:"2px dashed var(--bdr)",borderRadius:"12px",
+    background:"#fff",position:"relative",overflow:"hidden",
+    cursor:"crosshair",height:"110px",marginBottom:"10px"
+  }});
+  const sig2Cv=el("canvas",{style:{display:"block",width:"100%",height:"110px"}});
+  const sig2Hint=h("div",{style:{
+    position:"absolute",inset:"0",display:"flex",alignItems:"center",
+    justifyContent:"center",color:"#aaa",fontSize:"13px",pointerEvents:"none"
+  }},["✍️ Зааварчилгаа өгсөн хүний гарын үсэг"]);
+  const sig2Clr=el("button",{style:{
+    position:"absolute",top:"6px",right:"6px",background:"rgba(231,76,60,.85)",
+    color:"#fff",border:"none",borderRadius:"6px",padding:"3px 8px",
+    fontSize:"11px",cursor:"pointer",fontFamily:"inherit"
+  }},["Арилгах"]);
+  sig2Outer.appendChild(sig2Cv);sig2Outer.appendChild(sig2Hint);sig2Outer.appendChild(sig2Clr);
+  sec3.appendChild(sig2Outer);
+
+  let i2Ctx,i2Drawing=false,i2Drawn=false;
+  setTimeout(()=>{
+    sig2Cv.width=sig2Outer.offsetWidth||320;sig2Cv.height=110;
+    i2Ctx=sig2Cv.getContext("2d");
+    i2Ctx.strokeStyle="#1a2e1f";i2Ctx.lineWidth=2.5;i2Ctx.lineCap="round";i2Ctx.lineJoin="round";
+    function i2Pos(e){
+      const r=sig2Cv.getBoundingClientRect();
+      const t=e.touches?e.touches[0]:e;
+      return[(t.clientX-r.left)*(sig2Cv.width/r.width),(t.clientY-r.top)*(sig2Cv.height/r.height)];
+    }
+    sig2Cv.addEventListener("mousedown",e=>{i2Drawing=true;const[x,y]=i2Pos(e);i2Ctx.beginPath();i2Ctx.moveTo(x,y);});
+    sig2Cv.addEventListener("mousemove",e=>{if(!i2Drawing)return;i2Drawn=true;sig2Hint.style.opacity="0";const[x,y]=i2Pos(e);i2Ctx.lineTo(x,y);i2Ctx.stroke();});
+    sig2Cv.addEventListener("mouseup",()=>{i2Drawing=false;});
+    sig2Cv.addEventListener("mouseleave",()=>{i2Drawing=false;});
+    sig2Cv.addEventListener("touchstart",e=>{e.preventDefault();i2Drawing=true;const[x,y]=i2Pos(e);i2Ctx.beginPath();i2Ctx.moveTo(x,y);},{passive:false});
+    sig2Cv.addEventListener("touchmove",e=>{e.preventDefault();if(!i2Drawing)return;i2Drawn=true;sig2Hint.style.opacity="0";const[x,y]=i2Pos(e);i2Ctx.lineTo(x,y);i2Ctx.stroke();},{passive:false});
+    sig2Cv.addEventListener("touchend",()=>{i2Drawing=false;});
+  },100);
+  sig2Clr.onclick=()=>{if(i2Ctx){i2Ctx.clearRect(0,0,sig2Cv.width,sig2Cv.height);sig2Hint.style.opacity="1";i2Drawn=false;}};
+
+  wrap.appendChild(sec3);
+
+  // ── ХАДГАЛАХ ──
+  const saveBtn=el("button",{className:"btn btn-p",style:{marginTop:"4px"}},["💾 Бүртгэл хадгалах"]);
+  saveBtn.onclick=async()=>{
+    // Шаардлагатай талбарууд
+    if(!vals.name||!vals.name.trim()) return toast("Ажилтны нэрийг бичнэ үү","err");
+    if(!vals.dept) return toast("Тасгийг сонгоно уу","err");
+    if(!vals.position||!vals.position.trim()) return toast("Ажил, тушаалыг бичнэ үү","err");
+    if(!vals.instrType) return toast("Зааварчилгааны төрлийг сонгоно уу","err");
+    if(!vals.contents||!vals.contents.trim()) return toast("Зааварчилгааны агуулгыг сонгоно уу","err");
+    if(!vals.score) return toast("Шалгалтын дүнг сонгоно уу","err");
+    if(!iDrawn) return toast("Ажилтны гарын үсгийг зурна уу","err");
+    if(!vals.instrGiver||!vals.instrGiver.trim()) return toast("Зааварчилгаа өгсөн хүний нэрийг бичнэ үү","err");
+    if(!vals.instrGiverPos||!vals.instrGiverPos.trim()) return toast("Зааварчилгаа өгсөн хүний тушаалыг бичнэ үү","err");
+    if(!i2Drawn) return toast("Зааварчилгаа өгсөн хүний гарын үсгийг зурна уу","err");
+
+    saveBtn.disabled=true; saveBtn.textContent="Хадгалж байна...";
+
+    // Гарын үсэг авах
+    const getSig=(cv)=>{
+      const c=document.createElement("canvas");c.width=cv.width;c.height=cv.height;
+      const x=c.getContext("2d");x.fillStyle="#fff";x.fillRect(0,0,c.width,c.height);x.drawImage(cv,0,0);
+      return c.toDataURL("image/jpeg",0.85);
+    };
+    const sig1Data=getSig(sigCv);
+    const sig2Data=getSig(sig2Cv);
+
+    const log={
+      id:Date.now(),
+      logNum:vals.logNum||"—",
+      name:vals.name.trim(),
+      position:vals.position.trim(),
+      dept:vals.dept,
+      entryDate:vals.entryDate||toDay(),
+      instrType:vals.instrType,
+      contents:vals.contents,
+      instrDate:vals.instrDate||toDay(),
+      score:vals.score,
+      instrGiver:vals.instrGiver.trim(),
+      instrGiverPos:vals.instrGiverPos.trim(),
+      date:toDay(),
+      time:toNow(),
+      signature:sig1Data,
+      giverSignature:sig2Data
+    };
+
+    // LocalStorage
+    const logs=getInstrLogs();
+    logs.unshift(log);
+    if(logs.length>500)logs.splice(500);
+    saveInstrLogs(logs);
+
+    // Sheets-д POST
+    await postToSheets({
+      action:"addInstrLog",
+      logNum:log.logNum,
+      name:log.name,
+      position:log.position,
+      dept:log.dept,
+      entryDate:log.entryDate,
+      instrType:log.instrType,
+      contents:log.contents,
+      instrDate:log.instrDate,
+      score:log.score,
+      instrGiver:log.instrGiver,
+      instrGiverPos:log.instrGiverPos,
+      date:log.date,
+      time:log.time,
+      signature:sig1Data,
+      giverSignature:sig2Data
+    }).catch(()=>{});
+
+    // Амжилт
+    app.innerHTML="";
+    const pg=h("div",{className:"center-page",style:{background:"var(--gp)"}});
+    const cd=el("div",{className:"glass scaleIn",style:{maxWidth:"340px",width:"100%",padding:"36px 28px",textAlign:"center"}});
+    const circ=el("div",{className:"ok-circle"});
+    circ.innerHTML='<svg width="36" height="30" viewBox="0 0 36 30" fill="none"><polyline points="2,15 13,26 34,2" stroke="white" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+    cd.appendChild(circ);
+    cd.appendChild(brand(22,false));
+    cd.appendChild(h("div",{style:{fontFamily:"'DM Serif Display',serif",fontSize:"17px",color:"var(--g)",margin:"16px 0 6px"}},["Амжилттай бүртгэгдлээ!"]));
+    const info=el("div",{style:{
+      background:"var(--gp)",borderRadius:"12px",padding:"12px",
+      fontSize:"12px",color:"var(--mut)",marginBottom:"20px",textAlign:"left",lineHeight:"1.7"
+    }});
+    info.innerHTML=`👤 ${log.name} (${log.position})<br>🏭 ${log.dept}<br>📋 ${log.instrType}<br>📅 ${log.instrDate}<br>✅ ${log.score}<br>👨‍💼 ${log.instrGiver}`;
+    cd.appendChild(info);
+    cd.appendChild(el("button",{className:"btn btn-p",onclick:()=>renderHome()},["Нүүр хуудас"]));
+    pg.appendChild(cd); app.appendChild(pg);
+    toast("Зааварчилгааны бүртгэл хадгалагдлаа ✓");
+  };
+  wrap.appendChild(saveBtn);
+  page.appendChild(wrap);
+  app.appendChild(page);
 }
 
 
@@ -2343,7 +2841,7 @@ function renderManager(onLogout){
     const signedSet=new Set(todayRecs.map(r=>normName(r.name)));
     const unsigned=workers.filter(w=>!signedSet.has(normName(w.name)));
     const dateRecs=recs.filter(r=>r.date===selDate);
-    const TABS=[{id:"dashboard",l:"🏠 Хянах"},{id:"today",l:"📊 Өнөөдөр"},{id:"report",l:"📋 Тайлан"},{id:"workers",l:"👥 Ажилтан"},{id:"visitors",l:"🏭 Зочид"},{id:"settings",l:"⚙️ Тохиргоо"}];
+    const TABS=[{id:"dashboard",l:"🏠 Хянах"},{id:"today",l:"📊 Өнөөдөр"},{id:"report",l:"📋 Тайлан"},{id:"workers",l:"👥 Ажилтан"},{id:"visitors",l:"🏭 Зочид"},{id:"instrlog",l:"📋 Зааварчилгаа"},{id:"settings",l:"⚙️ Тохиргоо"}];
     const page=el("div",{className:"page"});
     const hdr=el("div",{className:"mgr-hdr"});
     const ht=h("div",{style:{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:"10px"}});
@@ -2778,6 +3276,102 @@ function renderManager(onLogout){
         });
       }
       body.appendChild(blCard);
+    }
+
+    // ══════ INSTRLOG ══════
+    else if(tab==="instrlog"){
+      const logs=getInstrLogs();
+      const ic=el("div",{className:"card fadeUp"});
+
+      // Гарчиг + тоо + CSV
+      ic.appendChild(h("div",{style:{
+        display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:"14px"
+      }},[
+        h("div",{className:"card-head",style:{margin:"0"}},["📋 Зааварчилгааны бүртгэл ("+logs.length+")"]),
+        h("div",{style:{display:"flex",gap:"6px"}},[
+          logs.length>0?el("button",{className:"btn btn-o btn-sm",onclick:()=>{
+            const rows=[["Огноо","Цаг","Нэр","Тушаал","Тасаг","Зааварчилгаа","Дүн","Менежер"]];
+            logs.forEach(v=>rows.push([v.date,v.time,v.name,v.position,v.dept,v.instrTypes,v.score,v.manager||"—"]));
+            const csvLines=rows.map(r=>r.map(c=>{const s=String(c||"");return '"'+s.replace(/"/g,'""')+'"';}).join(","));
+            const csv="\uFEFF"+csvLines.join("\r\n");
+            const blob=new Blob([csv],{type:"text/csv;charset=utf-8;"});
+            const url=URL.createObjectURL(blob);
+            const a=document.createElement("a");a.href=url;a.download="Зааварчилгааны_бүртгэл_"+toDay()+".csv";a.click();
+            URL.revokeObjectURL(url);
+            toast("CSV татагдлаа ✓");
+          }},["📥 CSV"]):h("span",{},[]),
+          logs.length>0?el("button",{className:"btn btn-d btn-sm",onclick:()=>{
+            if(!confirm("Бүх бүртгэлийг устгах уу?"))return;
+            saveInstrLogs([]);toast("Устгагдлаа","info");render();
+          }},["🗑️"]):h("span",{},[])
+        ])
+      ]));
+
+      if(!logs.length){
+        ic.appendChild(h("div",{style:{
+          color:"var(--mut)",fontSize:"13px",textAlign:"center",padding:"20px 0"
+        }},["Бүртгэл байхгүй байна"]));
+      }else{
+        // Өдрөөр бүлэглэх
+        const byDate={};
+        logs.forEach(v=>{if(!byDate[v.date])byDate[v.date]=[];byDate[v.date].push(v);});
+        Object.entries(byDate).forEach(([date,ls])=>{
+          ic.appendChild(h("div",{style:{
+            fontSize:"11px",fontWeight:"700",color:"var(--mut)",
+            letterSpacing:".06em",margin:"10px 0 6px",
+            display:"flex",alignItems:"center",gap:"6px"
+          }},[
+            h("div",{style:{flex:"1",height:"1px",background:"var(--bdr)"}}),
+            h("span",{},[date]),
+            h("span",{style:{background:"var(--g)",color:"#fff",borderRadius:"20px",padding:"1px 8px",fontSize:"10px"}},[ls.length+" бүртгэл"]),
+            h("div",{style:{flex:"1",height:"1px",background:"var(--bdr)"}}),
+          ]));
+          ls.forEach(v=>{
+            const row=el("div",{style:{
+              padding:"10px 0",borderBottom:"1px solid var(--gp)"
+            }});
+            const topRow2=h("div",{style:{display:"flex",alignItems:"center",gap:"10px",marginBottom:"4px"}},[
+              el("div",{style:{
+                width:"36px",height:"36px",borderRadius:"50%",flexShrink:"0",
+                background:"linear-gradient(135deg,var(--g),var(--gd))",
+                color:"#fff",fontSize:"13px",fontWeight:"700",
+                display:"flex",alignItems:"center",justifyContent:"center"
+              }},[initials(v.name)]),
+              h("div",{style:{flex:"1"}},[
+                h("div",{style:{fontWeight:"700",fontSize:"13px"}},[v.name]),
+                h("div",{style:{fontSize:"11px",color:"var(--mut)"}},[v.position+" · "+v.dept+" · 🕐 "+v.time])
+              ]),
+              el("div",{className:"badge "+(v.score==="Тэнцсэн"?"bg-g":"bg-r")},[v.score])
+            ]);
+            row.appendChild(topRow2);
+            // Зааварчилгааны утга
+            if(v.instrTypes){
+              row.appendChild(h("div",{style:{
+                fontSize:"11px",color:"var(--mut)",padding:"4px 46px",lineHeight:"1.5"
+              }},["📝 "+v.instrTypes]));
+            }
+            // Гарын үсэг + менежер
+            if(v.signature||v.manager){
+              const botRow=h("div",{style:{display:"flex",alignItems:"center",gap:"8px",padding:"4px 46px"}});
+              if(v.signature){
+                botRow.appendChild(el("img",{
+                  src:v.signature,
+                  style:{height:"28px",maxWidth:"80px",objectFit:"contain",
+                    border:"1px solid var(--bdr)",borderRadius:"4px",background:"#fff"}
+                }));
+              }
+              if(v.manager&&v.manager!=="—"){
+                botRow.appendChild(h("div",{style:{fontSize:"11px",color:"var(--mut)"}},[
+                  "✅ "+v.manager
+                ]));
+              }
+              row.appendChild(botRow);
+            }
+            ic.appendChild(row);
+          });
+        });
+      }
+      body.appendChild(ic);
     }
 
     // ══════ VISITORS ══════
