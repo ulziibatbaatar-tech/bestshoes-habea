@@ -2646,7 +2646,30 @@ function renderSuccess(rec,onHome){
 // 🖨️ ТАЙЛАН ХЭВЛЭХ
 // ════════════════════════════════════════════════════════════
 function printDayReport(date){
-  const recs = getRecs().filter(r=>r.date===date);
+  // Sheets-аас татаж LocalStorage-тай нэгтгэх + цаг засах
+  fetchTodayFromSheets(date).then(remote=>{
+    if(remote&&remote.length>0){
+      const local=getRecs();
+      const merged=mergeRecords(local,remote); // fixUtc цаг дотор засагдана
+      saveRecs(merged);
+    }
+    _doPrint(date);
+  }).catch(()=>_doPrint(date));
+}
+function _doPrint(date){
+  const recs = getRecs().filter(r=>r.date===date).map(r=>({
+    ...r,
+    // Харуулахдаа цаг дахин засах
+    time: (()=>{
+      const t=String(r.time||"").trim();
+      if(!/^\d{1,2}:\d{2}$/.test(t))return t;
+      const h=parseInt(t.split(":")[0]);
+      const m=t.split(":")[1];
+      if(h>=6&&h<=19)return t;
+      const ub=(h+8)%24;
+      return ub>=6&&ub<=19?String(ub).padStart(2,"0")+":"+m:t;
+    })()
+  }));
   const workers = getWrks();
   const signedSet = new Set(recs.map(r=>normName(r.name)));
   const unsigned = workers.filter(w=>!signedSet.has(normName(w.name)));
@@ -3088,10 +3111,21 @@ function renderManager(onLogout){
           saveRecs(merged);
         }
 
-        // Sheets-ийн өгөгдлийг ШУУД ашиглах
+        // Sheets-ийн өгөгдлийг цаг засаж ашиглах
+        const fixT=(t)=>{
+          if(!t)return t;
+          const s=String(t).trim();
+          if(!/^\d{1,2}:\d{2}$/.test(s))return s;
+          const h=parseInt(s.split(":")[0]);
+          const m=s.split(":")[1];
+          if(h>=6&&h<=19)return s;
+          const ub=(h+8)%24;
+          return ub>=6&&ub<=19?String(ub).padStart(2,"0")+":"+m:s;
+        };
+        const fixRecs=(rs)=>rs.map(r=>({...r,time:fixT(r.time)}));
         const sheetsRecs=remote.length>0
-          ? remote  // Sheets-д байгаа зөв цагтай өгөгдөл
-          : getRecs().filter(r=>r.date===selDate); // Offline бол LocalStorage
+          ? fixRecs(remote)
+          : fixRecs(getRecs().filter(r=>r.date===selDate));
 
         buildDetailReport(body, selDate, sheetsRecs);
       }).catch(()=>{
