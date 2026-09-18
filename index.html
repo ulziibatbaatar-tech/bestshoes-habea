@@ -1853,256 +1853,506 @@ const VISITOR_KEY = "habea_visitor_logs_v1";
 function getVisitorLogs(){ return lsGet(VISITOR_KEY)||[]; }
 function saveVisitorLogs(v){ lsSet(VISITOR_KEY,v); }
 
+// ── Орчуулгын өгөгдөл ──
+const VISITOR_LANGS = {
+  mn: { flag:"🇲🇳", label:"MN" },
+  zh: { flag:"🇨🇳", label:"中文" },
+  en: { flag:"🇬🇧", label:"EN" }
+};
+
+const VISITOR_T = {
+  mn: {
+    headerTitle: "🏭 ХАБЭА Зааварчилгаа",
+    backBtn: "← Буцах",
+    titleLine1: "ГУТЛЫН ҮЙЛДВЭРТ ЗОЧЛОГЧДОД",
+    titleLine2: "ӨГӨХ ХАБЭА-Н ЗААВАРЧИЛГАА",
+    titleSub: "BEST SHOES LLC · АЮУЛГҮЙ АЖИЛЛАГАА",
+    sections: [
+      { ico:"🎯", title:"1. Зорилго",
+        content:"Энэхүү зааварчилгааны зорилго нь гутлын үйлдвэрийн үйл ажиллагаатай танилцах хугацаанд зочдын аюулгүй байдлыг хангах, осол гэмтэл болон эрүүл мэндэд сөрөг нөлөөлөл үүсэхээс урьдчилан сэргийлэхэд оршино." },
+      { ico:"📋", title:"2. Ерөнхий шаардлага",
+        items:[
+          "Үйлдвэрийн ажилтан, хөтөчийн өгсөн зааварчилгааг чанд мөрдөнө",
+          "Зөвшөөрөгдсөн маршрутаар явж, тусгаарласан бүсэд нэвтрэхгүй",
+          "Үйлдвэрийн тоног төхөөрөмж, машин механизмд зөвшөөрөлгүй хүрэхгүй",
+          "Ажлын байранд гүйх, тоглох, бусдын анхаарал сарниулах үйлдэл хийхгүй",
+          "Согтууруулах ундаа хэрэглэсэн болон мансуурсан байдалтай хүн үйлдвэрт нэвтрэхийг хориглоно"
+        ]},
+      { ico:"⚙️", title:"3. Үйлдвэр дотор мөрдөх аюулгүй ажиллагаа",
+        subsections:[
+          { sub:"🔩 Машин механизмын орчимд", items:[
+            "Эргэлдэгч, хөдөлгөөнт эд ангид ойртохгүй",
+            "Хамгаалалтын хаалт, хашлагыг давж гарахгүй",
+            "Машин ажиллаж байх үед аюултай бүсэд нэвтрэхгүй"
+          ]},
+          { sub:"🧪 Түүхий эд, химийн бодисын хэсэгт", items:[
+            "Цавуу, уусгагч болон бусад химийн бодист хүрэхгүй",
+            "Сав баглаа боодол, шошгыг өөрчлөхгүй",
+            "Хурц үнэр мэдрэгдвэл хариуцсан ажилтанд мэдэгдэнэ"
+          ]},
+          { sub:"📦 Агуулах болон тээвэрлэлтийн бүсэд", items:[
+            "Өргөгч, ачигч техникээс аюулгүй зай барина",
+            "Ачааны доогуур болон өргөгдсөн ачааны ойролцоо зогсохгүй",
+            "Шар болон улаан тэмдэглэгээтэй бүсэд зөвшөөрөлгүй нэвтрэхгүй"
+          ]}
+        ]},
+      { ico:"🔥", title:"4. Галын аюулгүй байдал",
+        items:[
+          "Галын гарц, гал унтраах хэрэгслийг хаахгүй",
+          "Галын дохиолол дуугарсан тохиолдолд ажилтны зааврын дагуу хамгийн ойрын гарцаар тайван гарна",
+          "Ил гал гаргах, тамхи татахыг хатуу хориглоно"
+        ]},
+      { ico:"🚨", title:"5. Онцгой байдлын үед",
+        items:[
+          "Осол, гэмтэл, аюултай нөхцөл илэрвэл хамгийн ойрын ажилтан болон хөтөчид нэн даруй мэдэгдэнэ",
+          "Сандарч үймэхгүй, зохион байгуулалттайгаар нүүлгэн шилжүүлэлтийн зааврыг дагана",
+          "Эмнэлгийн анхны тусламж шаардлагатай бол үйлдвэрийн эрүүл ахуйн ажилтан эсвэл анхны тусламжийн цэгт хандана"
+        ]},
+      { ico:"🚫", title:"6. Хориглох зүйлс", danger:true,
+        items:[
+          "Фото зураг, дүрс бичлэгийг зөвшөөрөлгүй хийх",
+          "Тоног төхөөрөмж ажиллуулах",
+          "Химийн бодис, материалд хүрэх",
+          "Хог хаягдал хаях",
+          "Аюулгүйн тэмдэг тэмдэглэгээг үл тоомсорлох"
+        ]}
+    ],
+    confirmTitle: " 7. Баталгаажуулалт",
+    confirmDesc: "Доорх бүх зүйлтэй танилцсанаа тэмдэглэнэ үү:",
+    confirmItems: [
+      "Зорилгыг ойлгосон",
+      "Ерөнхий шаардлагатай танилцсан",
+      "Машин механизмын аюулгүй ажиллагааг мэдсэн",
+      "Химийн бодис, агуулахын дүрмийг мэдсэн",
+      "Галын аюулгүй байдлыг мэдсэн",
+      "Онцгой байдлын үеийн журмыг мэдсэн",
+      "Хориглох зүйлсийг ойлгосон",
+      "Бүх дүрэм журмыг мөрдөхөө зөвшөөрч байна"
+    ],
+    progress:(c,t)=>`${c}/${t} тэмдэглэсэн`,
+    nameLabel:"Зочны овог, нэр *", namePh:"Овог Нэр",
+    orgLabel:"Байгууллага", orgPh:"Байгууллагын нэр",
+    sigLabel:"Гарын үсэг *", sigHint:"✍️ Энд гарын үсгээ зурна уу", sigClear:"Арилгах",
+    saveBtn:"✅ Баталгаажуулж хадгалах",
+    errName:"Нэрийг бичнэ үү", errChecked:"Бүх зүйлийг тэмдэглэнэ үү", errSig:"Гарын үсгээ зурна уу",
+    saved:"Хадгалагдлаа ✓",
+    successTitle:"Амжилттай баталгаажлаа!",
+    successDesc:(n)=>n+" та ХАБЭА-н зааварчилгааг уншиж танилцлаа.",
+    homeBtn:"Нүүр хуудас"
+  },
+  zh: {
+    headerTitle: "🏭 HSE 安全须知",
+    backBtn: "← 返回",
+    titleLine1: "致鞋厂访客的",
+    titleLine2: "安全须知",
+    titleSub: "BEST SHOES LLC · 安全生产",
+    sections: [
+      { ico:"🎯", title:"1. 目的",
+        content:"本安全须知旨在确保访客在参观鞋厂生产过程期间的人身安全，预防事故和职业健康危害的发生。" },
+      { ico:"📋", title:"2. 一般要求",
+        items:[
+          "严格遵守工厂员工及导游给出的指示",
+          "沿规定路线行走，不得进入隔离区域",
+          "未经许可不得触碰工厂设备和机械",
+          "不得在厂区内奔跑、嬉戏或做出分散他人注意力的行为",
+          "禁止饮酒或处于醉酒状态的人员进入工厂"
+        ]},
+      { ico:"⚙️", title:"3. 厂区内须遵守的安全规定",
+        subsections:[
+          { sub:"🔩 机械设备周边", items:[
+            "不得靠近旋转或运动部件",
+            "不得跨越防护栏或安全罩",
+            "机器运行期间不得进入危险区域"
+          ]},
+          { sub:"🧪 原材料及化学品区域", items:[
+            "不得触碰胶水、溶剂等化学品",
+            "不得更改包装容器或标签",
+            "如闻到刺激性气味，请立即通知负责人员"
+          ]},
+          { sub:"📦 仓库及运输区域", items:[
+            "与叉车、装卸设备保持安全距离",
+            "不得停留在货物下方或悬吊货物附近",
+            "未经许可不得进入黄色或红色标记区域"
+          ]}
+        ]},
+      { ico:"🔥", title:"4. 消防安全",
+        items:[
+          "不得堵塞消防通道及灭火设备",
+          "如火警响起，请按员工指示，冷静地从最近的出口撤离",
+          "严禁明火及吸烟"
+        ]},
+      { ico:"🚨", title:"5. 紧急情况处理",
+        items:[
+          "如发现事故、伤害或危险情况，请立即通知最近的员工或导游",
+          "请勿惊慌，按疏散指示有序撤离",
+          "如需紧急医疗救助，请联系工厂安全员或急救点"
+        ]},
+      { ico:"🚫", title:"6. 禁止事项", danger:true,
+        items:[
+          "未经许可拍照或录像",
+          "操作设备",
+          "触碰化学品或材料",
+          "乱扔垃圾",
+          "忽视安全警示标志"
+        ]}
+    ],
+    confirmTitle: " 7. 确认",
+    confirmDesc: "请勾选以下所有已了解的内容：",
+    confirmItems: [
+      "已理解本次须知目的",
+      "已了解一般要求",
+      "已知晓机械设备安全规定",
+      "已知晓化学品及仓库规定",
+      "已知晓消防安全规定",
+      "已知晓紧急情况处理流程",
+      "已理解禁止事项",
+      "同意遵守以上所有规章制度"
+    ],
+    progress:(c,t)=>`已勾选 ${c}/${t}`,
+    nameLabel:"访客姓名 *", namePh:"姓名",
+    orgLabel:"单位 / 公司", orgPh:"单位名称",
+    sigLabel:"签名 *", sigHint:"✍️ 请在此签名", sigClear:"清除",
+    saveBtn:"✅ 确认并保存",
+    errName:"请填写姓名", errChecked:"请勾选所有项目", errSig:"请签名",
+    saved:"已保存 ✓",
+    successTitle:"确认成功！",
+    successDesc:(n)=>n+"，您已阅读并了解本安全须知。",
+    homeBtn:"返回首页"
+  },
+  en: {
+    headerTitle: "🏭 HSE Briefing",
+    backBtn: "← Back",
+    titleLine1: "SAFETY BRIEFING FOR VISITORS",
+    titleLine2: "TO THE SHOE FACTORY",
+    titleSub: "BEST SHOES LLC · SAFETY FIRST",
+    sections: [
+      { ico:"🎯", title:"1. Purpose",
+        content:"The purpose of this briefing is to ensure visitor safety while touring the shoe factory's operations, and to prevent accidents and negative impacts on health." },
+      { ico:"📋", title:"2. General Requirements",
+        items:[
+          "Strictly follow the instructions given by factory staff and your guide",
+          "Walk only along the approved route; do not enter restricted zones",
+          "Do not touch factory equipment or machinery without permission",
+          "Do not run, play, or distract others while on the premises",
+          "Persons who have consumed alcohol or are intoxicated are prohibited from entering the factory"
+        ]},
+      { ico:"⚙️", title:"3. Safety Rules Inside the Factory",
+        subsections:[
+          { sub:"🔩 Near machinery", items:[
+            "Do not approach rotating or moving parts",
+            "Do not cross protective barriers or guards",
+            "Do not enter hazardous zones while machines are running"
+          ]},
+          { sub:"🧪 Raw material and chemical areas", items:[
+            "Do not touch glue, solvents, or other chemicals",
+            "Do not alter packaging or labels",
+            "Report any strong odor to the responsible staff immediately"
+          ]},
+          { sub:"📦 Warehouse and transport areas", items:[
+            "Keep a safe distance from forklifts and loading equipment",
+            "Do not stand under or near suspended loads",
+            "Do not enter areas marked with yellow or red signage without authorization"
+          ]}
+        ]},
+      { ico:"🔥", title:"4. Fire Safety",
+        items:[
+          "Do not block fire exits or firefighting equipment",
+          "If the fire alarm sounds, calmly evacuate through the nearest exit as instructed by staff",
+          "Open flames and smoking are strictly prohibited"
+        ]},
+      { ico:"🚨", title:"5. In Case of Emergency",
+        items:[
+          "Immediately notify the nearest staff member or guide if you notice an accident, injury, or hazardous condition",
+          "Do not panic; follow evacuation instructions in an orderly manner",
+          "If medical assistance is needed, contact the factory's safety officer or first-aid station"
+        ]},
+      { ico:"🚫", title:"6. Prohibited Actions", danger:true,
+        items:[
+          "Taking photos or videos without permission",
+          "Operating equipment",
+          "Touching chemicals or materials",
+          "Littering",
+          "Ignoring safety signs"
+        ]}
+    ],
+    confirmTitle: " 7. Confirmation",
+    confirmDesc: "Please check off everything below once you have reviewed it:",
+    confirmItems: [
+      "Understood the purpose",
+      "Reviewed the general requirements",
+      "Aware of machinery safety rules",
+      "Aware of chemical and warehouse rules",
+      "Aware of fire safety",
+      "Aware of emergency procedures",
+      "Understood the prohibited actions",
+      "Agree to comply with all rules and regulations"
+    ],
+    progress:(c,t)=>`${c}/${t} checked`,
+    nameLabel:"Visitor full name *", namePh:"Full name",
+    orgLabel:"Organization", orgPh:"Organization name",
+    sigLabel:"Signature *", sigHint:"✍️ Sign here", sigClear:"Clear",
+    saveBtn:"✅ Confirm & Save",
+    errName:"Please enter your name", errChecked:"Please check all items", errSig:"Please sign",
+    saved:"Saved ✓",
+    successTitle:"Successfully confirmed!",
+    successDesc:(n)=>n+", you have read and understood the HSE briefing.",
+    homeBtn:"Home"
+  }
+};
+
 function renderVisitorGuide(){
   const app=document.getElementById("app");app.innerHTML="";
-  const page=el("div",{className:"page",style:{background:"var(--gp)"}});
+  let lang = lsGet("habea_visitor_lang_v1") || "mn";
 
-  // Header
-  const hdr=h("div",{style:{
-    background:"linear-gradient(135deg,var(--gd),var(--g))",
-    padding:"14px 16px",display:"flex",alignItems:"center",justifyContent:"space-between"
-  }});
-  const bb=el("button",{style:{
-    background:"rgba(255,255,255,.1)",border:"1px solid rgba(255,255,255,.2)",
-    color:"#fff",borderRadius:"8px",padding:"6px 12px",
-    cursor:"pointer",fontSize:"13px",fontFamily:"inherit"
-  }},["← Буцах"]);
-  bb.onclick=()=>renderHome();
-  hdr.appendChild(bb);
-  hdr.appendChild(h("div",{style:{
-    fontFamily:"'DM Serif Display',serif",fontSize:"15px",
-    color:"#fff",textAlign:"center",flex:"1"
-  }},["🏭 ХАБЭА Зааварчилгаа"]));
-  hdr.appendChild(h("div",{style:{width:"60px"}}));
-  page.appendChild(hdr);
+  function setLang(l){ lang=l; lsSet("habea_visitor_lang_v1", l); render(); }
 
-  const wrap=h("div",{style:{maxWidth:"560px",margin:"0 auto",padding:"16px 16px 100px"}});
+  function render(){
+    app.innerHTML="";
+    const T = VISITOR_T[lang];
+    const page=el("div",{className:"page",style:{background:"var(--gp)"}});
 
-  // Гарчиг карт
-  const titleCard=el("div",{style:{
-    background:"linear-gradient(135deg,var(--gd),var(--g))",
-    borderRadius:"16px",padding:"20px",marginBottom:"14px",
-    textAlign:"center",position:"relative",overflow:"hidden"
-  }});
-  titleCard.innerHTML=`
-    <div style="position:absolute;bottom:-15px;right:-10px;font-family:'DM Serif Display',serif;font-size:80px;color:rgba(255,255,255,.04);pointer-events:none">BEST SHOES</div>
-    <div style="position:relative;z-index:1">
-      <div style="font-size:32px;margin-bottom:8px">🏭</div>
-      <div style="font-family:'DM Serif Display',serif;font-size:17px;color:#fff;margin-bottom:4px">ГУТЛЫН ҮЙЛДВЭРТ ЗОЧЛОГЧДОД</div>
-      <div style="font-family:'DM Serif Display',serif;font-size:17px;color:var(--gl)">ӨГӨХ ХАБЭА-Н ЗААВАРЧИЛГАА</div>
-      <div style="color:rgba(255,255,255,.5);font-size:11px;margin-top:8px;letter-spacing:.1em">BEST SHOES LLC · АЮУЛГҮЙ АЖИЛЛАГАА</div>
-    </div>`;
-  wrap.appendChild(titleCard);
+    // Header
+    const hdr=h("div",{style:{
+      background:"linear-gradient(135deg,var(--gd),var(--g))",
+      padding:"14px 16px",display:"flex",alignItems:"center",justifyContent:"space-between"
+    }});
+    const bb=el("button",{style:{
+      background:"rgba(255,255,255,.1)",border:"1px solid rgba(255,255,255,.2)",
+      color:"#fff",borderRadius:"8px",padding:"6px 12px",
+      cursor:"pointer",fontSize:"13px",fontFamily:"inherit"
+    }},[T.backBtn]);
+    bb.onclick=()=>renderHome();
+    hdr.appendChild(bb);
+    hdr.appendChild(h("div",{style:{
+      fontFamily:"'DM Serif Display',serif",fontSize:"15px",
+      color:"#fff",textAlign:"center",flex:"1"
+    }},[T.headerTitle]));
+    // ── Хэлний сонголт ──
+    const langWrap=el("div",{style:{display:"flex",gap:"4px"}});
+    Object.keys(VISITOR_LANGS).forEach(code=>{
+      const info=VISITOR_LANGS[code];
+      const active=code===lang;
+      const lb=el("button",{style:{
+        background:active?"#fff":"rgba(255,255,255,.12)",
+        color:active?"var(--g)":"rgba(255,255,255,.85)",
+        border:"1px solid "+(active?"#fff":"rgba(255,255,255,.3)"),
+        borderRadius:"8px",padding:"5px 8px",fontSize:"11px",fontWeight:"700",
+        cursor:"pointer",fontFamily:"inherit"
+      }},[info.flag+" "+info.label]);
+      lb.onclick=()=>setLang(code);
+      langWrap.appendChild(lb);
+    });
+    hdr.appendChild(langWrap);
+    page.appendChild(hdr);
 
-  // Зааварчилгааны хэсгүүд
-  const sections=[
-    {ico:"🎯",title:"1. Зорилго",content:"Энэхүү зааварчилгааны зорилго нь гутлын үйлдвэрийн үйл ажиллагаатай танилцах хугацаанд зочдын аюулгүй байдлыг хангах, осол гэмтэл болон эрүүл мэндэд сөрөг нөлөөлөл үүсэхээс урьдчилан сэргийлэхэд оршино.",items:[]},
-    {ico:"📋",title:"2. Ерөнхий шаардлага",content:"",items:["Үйлдвэрийн ажилтан, хөтөчийн өгсөн зааварчилгааг чанд мөрдөнө","Зөвшөөрөгдсөн маршрутаар явж, тусгаарласан бүсэд нэвтрэхгүй","Үйлдвэрийн тоног төхөөрөмж, машин механизмд зөвшөөрөлгүй хүрэхгүй","Ажлын байранд гүйх, тоглох, бусдын анхаарал сарниулах үйлдэл хийхгүй","Согтууруулах ундаа хэрэглэсэн болон мансуурсан байдалтай хүн үйлдвэрт нэвтрэхийг хориглоно"]},
-    {ico:"⚙️",title:"3. Үйлдвэр дотор мөрдөх аюулгүй ажиллагаа",content:"",subsections:[
-      {sub:"🔩 Машин механизмын орчимд",items:["Эргэлдэгч, хөдөлгөөнт эд ангид ойртохгүй","Хамгаалалтын хаалт, хашлагыг давж гарахгүй","Машин ажиллаж байх үед аюултай бүсэд нэвтрэхгүй"]},
-      {sub:"🧪 Түүхий эд, химийн бодисын хэсэгт",items:["Цавуу, уусгагч болон бусад химийн бодист хүрэхгүй","Сав баглаа боодол, шошгыг өөрчлөхгүй","Хурц үнэр мэдрэгдвэл хариуцсан ажилтанд мэдэгдэнэ"]},
-      {sub:"📦 Агуулах болон тээвэрлэлтийн бүсэд",items:["Өргөгч, ачигч техникээс аюулгүй зай барина","Ачааны доогуур болон өргөгдсөн ачааны ойролцоо зогсохгүй","Шар болон улаан тэмдэглэгээтэй бүсэд зөвшөөрөлгүй нэвтрэхгүй"]}
-    ]},
-    {ico:"🔥",title:"4. Галын аюулгүй байдал",content:"",items:["Галын гарц, гал унтраах хэрэгслийг хаахгүй","Галын дохиолол дуугарсан тохиолдолд ажилтны зааврын дагуу хамгийн ойрын гарцаар тайван гарна","Ил гал гаргах, тамхи татахыг хатуу хориглоно"]},
-    {ico:"🚨",title:"5. Онцгой байдлын үед",content:"",items:["Осол, гэмтэл, аюултай нөхцөл илэрвэл хамгийн ойрын ажилтан болон хөтөчид нэн даруй мэдэгдэнэ","Сандарч үймэхгүй, зохион байгуулалттайгаар нүүлгэн шилжүүлэлтийн зааврыг дагана","Эмнэлгийн анхны тусламж шаардлагатай бол үйлдвэрийн эрүүл ахуйн ажилтан эсвэл анхны тусламжийн цэгт хандана"]},
-    {ico:"🚫",title:"6. Хориглох зүйлс",content:"",items:["Фото зураг, дүрс бичлэгийг зөвшөөрөлгүй хийх","Тоног төхөөрөмж ажиллуулах","Химийн бодис, материалд хүрэх","Хог хаягдал хаях","Аюулгүйн тэмдэг тэмдэглэгээг үл тоомсорлох"],danger:true}
-  ];
+    const wrap=h("div",{style:{maxWidth:"560px",margin:"0 auto",padding:"16px 16px 100px"}});
 
-  sections.forEach(s=>{
-    const card=el("div",{className:"card fadeUp"});
-    card.appendChild(h("div",{style:{
-      display:"flex",alignItems:"center",gap:"8px",marginBottom:"12px",
-      fontFamily:"'DM Serif Display',serif",fontSize:"14px",
-      color:s.danger?"#c0392b":"var(--g)"
-    }},[h("span",{style:{fontSize:"18px"}},[s.ico]),h("span",{},[s.title])]));
-    if(s.content) card.appendChild(h("div",{style:{fontSize:"13px",color:"var(--mut)",lineHeight:"1.7"}},[s.content]));
-    if(s.items&&s.items.length){
-      s.items.forEach((item,i)=>{
-        card.appendChild(h("div",{style:{display:"flex",gap:"10px",padding:"7px 0",borderBottom:i<s.items.length-1?"1px solid var(--gp)":"none",alignItems:"flex-start"}},[
-          h("div",{style:{minWidth:"22px",height:"22px",borderRadius:"50%",background:s.danger?"#e74c3c":"var(--g)",color:"#fff",fontSize:"11px",fontWeight:"700",display:"flex",alignItems:"center",justifyContent:"center",marginTop:"1px",flexShrink:"0"}},[s.danger?"✕":String(i+1)]),
-          h("div",{style:{fontSize:"13px",color:"var(--ink)",lineHeight:"1.6"}},[item])
-        ]));
-      });
-    }
-    if(s.subsections){
-      s.subsections.forEach(sub=>{
-        card.appendChild(h("div",{style:{fontSize:"12px",fontWeight:"700",color:"var(--g)",margin:"10px 0 6px",paddingLeft:"4px"}},[sub.sub]));
-        sub.items.forEach((item,i)=>{
-          card.appendChild(h("div",{style:{display:"flex",gap:"10px",padding:"6px 0",borderBottom:i<sub.items.length-1?"1px solid var(--gp)":"none",alignItems:"flex-start"}},[
-            h("div",{style:{minWidth:"6px",height:"6px",borderRadius:"50%",background:"var(--gl)",marginTop:"7px",flexShrink:"0"}}),
+    // Гарчиг карт
+    const titleCard=el("div",{style:{
+      background:"linear-gradient(135deg,var(--gd),var(--g))",
+      borderRadius:"16px",padding:"20px",marginBottom:"14px",
+      textAlign:"center",position:"relative",overflow:"hidden"
+    }});
+    titleCard.innerHTML=`
+      <div style="position:absolute;bottom:-15px;right:-10px;font-family:'DM Serif Display',serif;font-size:80px;color:rgba(255,255,255,.04);pointer-events:none">BEST SHOES</div>
+      <div style="position:relative;z-index:1">
+        <div style="font-size:32px;margin-bottom:8px">🏭</div>
+        <div style="font-family:'DM Serif Display',serif;font-size:17px;color:#fff;margin-bottom:4px">${T.titleLine1}</div>
+        <div style="font-family:'DM Serif Display',serif;font-size:17px;color:var(--gl)">${T.titleLine2}</div>
+        <div style="color:rgba(255,255,255,.5);font-size:11px;margin-top:8px;letter-spacing:.1em">${T.titleSub}</div>
+      </div>`;
+    wrap.appendChild(titleCard);
+
+    // Зааварчилгааны хэсгүүд
+    T.sections.forEach(s=>{
+      const card=el("div",{className:"card fadeUp"});
+      card.appendChild(h("div",{style:{
+        display:"flex",alignItems:"center",gap:"8px",marginBottom:"12px",
+        fontFamily:"'DM Serif Display',serif",fontSize:"14px",
+        color:s.danger?"#c0392b":"var(--g)"
+      }},[h("span",{style:{fontSize:"18px"}},[s.ico]),h("span",{},[s.title])]));
+      if(s.content) card.appendChild(h("div",{style:{fontSize:"13px",color:"var(--mut)",lineHeight:"1.7"}},[s.content]));
+      if(s.items&&s.items.length){
+        s.items.forEach((item,i)=>{
+          card.appendChild(h("div",{style:{display:"flex",gap:"10px",padding:"7px 0",borderBottom:i<s.items.length-1?"1px solid var(--gp)":"none",alignItems:"flex-start"}},[
+            h("div",{style:{minWidth:"22px",height:"22px",borderRadius:"50%",background:s.danger?"#e74c3c":"var(--g)",color:"#fff",fontSize:"11px",fontWeight:"700",display:"flex",alignItems:"center",justifyContent:"center",marginTop:"1px",flexShrink:"0"}},[s.danger?"✕":String(i+1)]),
             h("div",{style:{fontSize:"13px",color:"var(--ink)",lineHeight:"1.6"}},[item])
           ]));
         });
-      });
-    }
-    wrap.appendChild(card);
-  });
-
-  // ✅ Баталгаажуулалт — чеклист + хадгалах
-  const confirmItems=[
-    "Зорилгыг ойлгосон",
-    "Ерөнхий шаардлагатай танилцсан",
-    "Машин механизмын аюулгүй ажиллагааг мэдсэн",
-    "Химийн бодис, агуулахын дүрмийг мэдсэн",
-    "Галын аюулгүй байдлыг мэдсэн",
-    "Онцгой байдлын үеийн журмыг мэдсэн",
-    "Хориглох зүйлсийг ойлгосон",
-    "Бүх дүрэм журмыг мөрдөхөө зөвшөөрч байна"
-  ];
-  const checked=new Set();
-
-  const sigCard=el("div",{className:"card fadeUp",style:{border:"2px solid var(--g)",background:"var(--gp)"}});
-  sigCard.appendChild(h("div",{style:{fontFamily:"'DM Serif Display',serif",fontSize:"14px",color:"var(--g)",marginBottom:"12px",display:"flex",alignItems:"center",gap:"8px"}},[
-    h("span",{style:{fontSize:"18px"}},["✅"]),
-    h("span",{},[" 7. Баталгаажуулалт"])
-  ]));
-  sigCard.appendChild(h("div",{style:{fontSize:"13px",color:"var(--ink)",lineHeight:"1.7",marginBottom:"14px",background:"#fff",borderRadius:"10px",padding:"12px",border:"1px solid var(--bdr)"}},[
-    "Доорх бүх зүйлтэй танилцсанаа тэмдэглэнэ үү:"
-  ]));
-
-  // Чеклист
-  const clWrap=el("div",{style:{marginBottom:"14px"}});
-  confirmItems.forEach((item,i)=>{
-    const row=el("div",{style:{display:"flex",alignItems:"center",gap:"10px",padding:"9px 10px",borderRadius:"10px",cursor:"pointer",marginBottom:"3px",background:"#fff",border:"1.5px solid var(--bdr)",transition:"all .15s"}});
-    const box=el("div",{style:{width:"22px",height:"22px",border:"2px solid var(--bdr)",borderRadius:"6px",flexShrink:"0",display:"flex",alignItems:"center",justifyContent:"center",transition:"all .15s"}});
-    const txt=h("div",{style:{fontSize:"13px",color:"var(--ink)",lineHeight:"1.5"}},[item]);
-    row.appendChild(box);row.appendChild(txt);
-    row.onclick=()=>{
-      if(checked.has(i)){
-        checked.delete(i);
-        box.style.background="";box.style.borderColor="var(--bdr)";box.innerHTML="";
-        row.style.background="#fff";row.style.borderColor="var(--bdr)";
-      }else{
-        checked.add(i);
-        box.style.background="var(--g)";box.style.borderColor="var(--g)";
-        box.innerHTML=chk();
-        row.style.background="var(--gp)";row.style.borderColor="var(--g)";
       }
-      progTxt.textContent=checked.size+"/"+confirmItems.length+" тэмдэглэсэн";
+      if(s.subsections){
+        s.subsections.forEach(sub=>{
+          card.appendChild(h("div",{style:{fontSize:"12px",fontWeight:"700",color:"var(--g)",margin:"10px 0 6px",paddingLeft:"4px"}},[sub.sub]));
+          sub.items.forEach((item,i)=>{
+            card.appendChild(h("div",{style:{display:"flex",gap:"10px",padding:"6px 0",borderBottom:i<sub.items.length-1?"1px solid var(--gp)":"none",alignItems:"flex-start"}},[
+              h("div",{style:{minWidth:"6px",height:"6px",borderRadius:"50%",background:"var(--gl)",marginTop:"7px",flexShrink:"0"}}),
+              h("div",{style:{fontSize:"13px",color:"var(--ink)",lineHeight:"1.6"}},[item])
+            ]));
+          });
+        });
+      }
+      wrap.appendChild(card);
+    });
+
+    // ✅ Баталгаажуулалт — чеклист + хадгалах
+    const checked=new Set();
+
+    const sigCard=el("div",{className:"card fadeUp",style:{border:"2px solid var(--g)",background:"var(--gp)"}});
+    sigCard.appendChild(h("div",{style:{fontFamily:"'DM Serif Display',serif",fontSize:"14px",color:"var(--g)",marginBottom:"12px",display:"flex",alignItems:"center",gap:"8px"}},[
+      h("span",{style:{fontSize:"18px"}},["✅"]),
+      h("span",{},[T.confirmTitle])
+    ]));
+    sigCard.appendChild(h("div",{style:{fontSize:"13px",color:"var(--ink)",lineHeight:"1.7",marginBottom:"14px",background:"#fff",borderRadius:"10px",padding:"12px",border:"1px solid var(--bdr)"}},[
+      T.confirmDesc
+    ]));
+
+    // Чеклист
+    const clWrap=el("div",{style:{marginBottom:"14px"}});
+    T.confirmItems.forEach((item,i)=>{
+      const row=el("div",{style:{display:"flex",alignItems:"center",gap:"10px",padding:"9px 10px",borderRadius:"10px",cursor:"pointer",marginBottom:"3px",background:"#fff",border:"1.5px solid var(--bdr)",transition:"all .15s"}});
+      const box=el("div",{style:{width:"22px",height:"22px",border:"2px solid var(--bdr)",borderRadius:"6px",flexShrink:"0",display:"flex",alignItems:"center",justifyContent:"center",transition:"all .15s"}});
+      const txt=h("div",{style:{fontSize:"13px",color:"var(--ink)",lineHeight:"1.5"}},[item]);
+      row.appendChild(box);row.appendChild(txt);
+      row.onclick=()=>{
+        if(checked.has(i)){
+          checked.delete(i);
+          box.style.background="";box.style.borderColor="var(--bdr)";box.innerHTML="";
+          row.style.background="#fff";row.style.borderColor="var(--bdr)";
+        }else{
+          checked.add(i);
+          box.style.background="var(--g)";box.style.borderColor="var(--g)";
+          box.innerHTML=chk();
+          row.style.background="var(--gp)";row.style.borderColor="var(--g)";
+        }
+        progTxt.textContent=T.progress(checked.size,T.confirmItems.length);
+      };
+      clWrap.appendChild(row);
+    });
+    sigCard.appendChild(clWrap);
+
+    const progTxt=h("div",{style:{fontSize:"12px",color:"var(--mut)",textAlign:"center",marginBottom:"14px"}},[T.progress(0,T.confirmItems.length)]);
+    sigCard.appendChild(progTxt);
+
+    // Нэр оруулах
+    const niw=el("div",{style:{marginBottom:"10px"}});
+    niw.appendChild(h("div",{className:"inp-label"},[T.nameLabel]));
+    const nameInp=el("input",{className:"inp",type:"text",placeholder:T.namePh});
+    niw.appendChild(nameInp);sigCard.appendChild(niw);
+
+    // Байгууллага
+    const orgw=el("div",{style:{marginBottom:"14px"}});
+    orgw.appendChild(h("div",{className:"inp-label"},[T.orgLabel]));
+    const orgInp=el("input",{className:"inp",type:"text",placeholder:T.orgPh});
+    orgw.appendChild(orgInp);sigCard.appendChild(orgw);
+
+    // Гарын үсэг
+    const sigw=el("div",{style:{marginBottom:"14px"}});
+    sigw.appendChild(h("div",{className:"inp-label"},[T.sigLabel]));
+    const sigOuter=el("div",{style:{
+      border:"2px dashed var(--bdr)",borderRadius:"12px",
+      background:"#fff",position:"relative",overflow:"hidden",
+      cursor:"crosshair",height:"130px"
+    }});
+    const sigCv=el("canvas",{style:{display:"block",width:"100%",height:"130px",background:"#fff"}});
+    const sigHint=h("div",{style:{
+      position:"absolute",inset:"0",display:"flex",alignItems:"center",
+      justifyContent:"center",color:"#aaa",fontSize:"13px",pointerEvents:"none"
+    }},[T.sigHint]);
+    const sigClr=el("button",{style:{
+      position:"absolute",top:"6px",right:"6px",
+      background:"rgba(231,76,60,.85)",color:"#fff",border:"none",
+      borderRadius:"6px",padding:"3px 8px",fontSize:"11px",
+      cursor:"pointer",fontFamily:"inherit"
+    }},[T.sigClear]);
+    sigOuter.appendChild(sigCv);sigOuter.appendChild(sigHint);sigOuter.appendChild(sigClr);
+    sigw.appendChild(sigOuter);
+    sigCard.appendChild(sigw);
+
+    let vCtx,vDrawing=false,vDrawn=false;
+    setTimeout(()=>{
+      sigCv.width=sigOuter.offsetWidth||320;sigCv.height=130;
+      vCtx=sigCv.getContext("2d");
+      vCtx.strokeStyle="#1a2e1f";vCtx.lineWidth=2.5;vCtx.lineCap="round";vCtx.lineJoin="round";
+      function vPos(e){
+        const r=sigCv.getBoundingClientRect();
+        const t=e.touches?e.touches[0]:e;
+        return[(t.clientX-r.left)*(sigCv.width/r.width),(t.clientY-r.top)*(sigCv.height/r.height)];
+      }
+      sigCv.addEventListener("mousedown",e=>{vDrawing=true;const[x,y]=vPos(e);vCtx.beginPath();vCtx.moveTo(x,y);});
+      sigCv.addEventListener("mousemove",e=>{if(!vDrawing)return;vDrawn=true;sigHint.style.opacity="0";const[x,y]=vPos(e);vCtx.lineTo(x,y);vCtx.stroke();});
+      sigCv.addEventListener("mouseup",()=>{vDrawing=false;});
+      sigCv.addEventListener("mouseleave",()=>{vDrawing=false;});
+      sigCv.addEventListener("touchstart",e=>{e.preventDefault();vDrawing=true;const[x,y]=vPos(e);vCtx.beginPath();vCtx.moveTo(x,y);},{passive:false});
+      sigCv.addEventListener("touchmove",e=>{e.preventDefault();if(!vDrawing)return;vDrawn=true;sigHint.style.opacity="0";const[x,y]=vPos(e);vCtx.lineTo(x,y);vCtx.stroke();},{passive:false});
+      sigCv.addEventListener("touchend",()=>{vDrawing=false;});
+    },50);
+    sigClr.onclick=()=>{if(vCtx){vCtx.clearRect(0,0,sigCv.width,sigCv.height);sigHint.style.opacity="1";vDrawn=false;}};
+
+    // Хадгалах товч
+    const saveBtn=el("button",{className:"btn btn-p"},[T.saveBtn]);
+    saveBtn.onclick=()=>{
+      if(!nameInp.value.trim()) return toast(T.errName,"err");
+      if(checked.size<T.confirmItems.length) return toast(T.errChecked,"err");
+      if(!vDrawn) return toast(T.errSig,"err");
+      // Гарын үсэг авах
+      const _vc=document.createElement("canvas");
+      _vc.width=sigCv.width;_vc.height=sigCv.height;
+      const _vx=_vc.getContext("2d");
+      _vx.fillStyle="#fff";_vx.fillRect(0,0,_vc.width,_vc.height);
+      _vx.drawImage(sigCv,0,0);
+      const sigData=_vc.toDataURL("image/jpeg",0.85);
+      const log={
+        id: Date.now(),
+        name: nameInp.value.trim(),
+        org: orgInp.value.trim()||"—",
+        date: toDay(),
+        time: toNow(),
+        items: T.confirmItems.length,
+        checked: checked.size,
+        signature: sigData,
+        lang: lang
+      };
+      const logs=getVisitorLogs();
+      logs.unshift(log);
+      if(logs.length>100) logs.splice(100);
+      saveVisitorLogs(logs);
+      // Sheets-д хадгалах (гарын үсэг хамт)
+      postToSheets({
+        action: "addVisitor",
+        name:    log.name,
+        org:     log.org,
+        date:    log.date,
+        time:    log.time,
+        checked: String(log.checked),
+        items:   String(log.items),
+        signature: log.signature||"",
+        lang: log.lang
+      }).catch(()=>{}); // Offline бол алгасна
+      // Амжилтын хуудас
+      app.innerHTML="";
+      const pg=h("div",{className:"center-page",style:{background:"var(--gp)"}});
+      const cd=el("div",{className:"glass scaleIn",style:{maxWidth:"340px",width:"100%",padding:"36px 28px",textAlign:"center"}});
+      const circ=el("div",{className:"ok-circle"});
+      circ.innerHTML='<svg width="36" height="30" viewBox="0 0 36 30" fill="none"><polyline points="2,15 13,26 34,2" stroke="white" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+      cd.appendChild(circ);
+      cd.appendChild(brand(22,false));
+      cd.appendChild(h("div",{style:{fontFamily:"'DM Serif Display',serif",fontSize:"18px",color:"var(--g)",margin:"16px 0 6px"}},[T.successTitle]));
+      cd.appendChild(h("div",{style:{color:"var(--mut)",fontSize:"13px",marginBottom:"8px"}},[T.successDesc(log.name)]));
+      const infoDiv=el("div",{style:{background:"var(--gp)",borderRadius:"12px",padding:"12px",fontSize:"12px",color:"var(--mut)",marginBottom:"20px",textAlign:"left"}});
+      infoDiv.innerHTML="📅 "+log.date+" 🕐 "+log.time+"<br>🏢 "+log.org;
+      cd.appendChild(infoDiv);
+      cd.appendChild(el("button",{className:"btn btn-p",onclick:renderHome},[T.homeBtn]));
+      pg.appendChild(cd);app.appendChild(pg);
+      toast(T.saved);
     };
-    clWrap.appendChild(row);
-  });
-  sigCard.appendChild(clWrap);
+    sigCard.appendChild(saveBtn);
+    wrap.appendChild(sigCard);
+    page.appendChild(wrap);
+    app.appendChild(page);
+  }
 
-  const progTxt=h("div",{style:{fontSize:"12px",color:"var(--mut)",textAlign:"center",marginBottom:"14px"}},["0/"+confirmItems.length+" тэмдэглэсэн"]);
-  sigCard.appendChild(progTxt);
-
-  // Нэр оруулах
-  const niw=el("div",{style:{marginBottom:"10px"}});
-  niw.appendChild(h("div",{className:"inp-label"},["Зочны овог, нэр *"]));
-  const nameInp=el("input",{className:"inp",type:"text",placeholder:"Овог Нэр"});
-  niw.appendChild(nameInp);sigCard.appendChild(niw);
-
-  // Байгууллага
-  const orgw=el("div",{style:{marginBottom:"14px"}});
-  orgw.appendChild(h("div",{className:"inp-label"},["Байгууллага"]));
-  const orgInp=el("input",{className:"inp",type:"text",placeholder:"Байгууллагын нэр"});
-  orgw.appendChild(orgInp);sigCard.appendChild(orgw);
-
-  // Гарын үсэг
-  const sigw=el("div",{style:{marginBottom:"14px"}});
-  sigw.appendChild(h("div",{className:"inp-label"},["Гарын үсэг *"]));
-  const sigOuter=el("div",{style:{
-    border:"2px dashed var(--bdr)",borderRadius:"12px",
-    background:"#fff",position:"relative",overflow:"hidden",
-    cursor:"crosshair",height:"130px"
-  }});
-  const sigCv=el("canvas",{style:{display:"block",width:"100%",height:"130px",background:"#fff"}});
-  const sigHint=h("div",{style:{
-    position:"absolute",inset:"0",display:"flex",alignItems:"center",
-    justifyContent:"center",color:"#aaa",fontSize:"13px",pointerEvents:"none"
-  }},["✍️ Энд гарын үсгээ зурна уу"]);
-  const sigClr=el("button",{style:{
-    position:"absolute",top:"6px",right:"6px",
-    background:"rgba(231,76,60,.85)",color:"#fff",border:"none",
-    borderRadius:"6px",padding:"3px 8px",fontSize:"11px",
-    cursor:"pointer",fontFamily:"inherit"
-  }},["Арилгах"]);
-  sigOuter.appendChild(sigCv);sigOuter.appendChild(sigHint);sigOuter.appendChild(sigClr);
-  sigw.appendChild(sigOuter);
-  sigCard.appendChild(sigw);
-
-  let vCtx,vDrawing=false,vDrawn=false;
-  setTimeout(()=>{
-    sigCv.width=sigOuter.offsetWidth||320;sigCv.height=130;
-    vCtx=sigCv.getContext("2d");
-    vCtx.strokeStyle="#1a2e1f";vCtx.lineWidth=2.5;vCtx.lineCap="round";vCtx.lineJoin="round";
-    function vPos(e){
-      const r=sigCv.getBoundingClientRect();
-      const t=e.touches?e.touches[0]:e;
-      return[(t.clientX-r.left)*(sigCv.width/r.width),(t.clientY-r.top)*(sigCv.height/r.height)];
-    }
-    sigCv.addEventListener("mousedown",e=>{vDrawing=true;const[x,y]=vPos(e);vCtx.beginPath();vCtx.moveTo(x,y);});
-    sigCv.addEventListener("mousemove",e=>{if(!vDrawing)return;vDrawn=true;sigHint.style.opacity="0";const[x,y]=vPos(e);vCtx.lineTo(x,y);vCtx.stroke();});
-    sigCv.addEventListener("mouseup",()=>{vDrawing=false;});
-    sigCv.addEventListener("mouseleave",()=>{vDrawing=false;});
-    sigCv.addEventListener("touchstart",e=>{e.preventDefault();vDrawing=true;const[x,y]=vPos(e);vCtx.beginPath();vCtx.moveTo(x,y);},{passive:false});
-    sigCv.addEventListener("touchmove",e=>{e.preventDefault();if(!vDrawing)return;vDrawn=true;sigHint.style.opacity="0";const[x,y]=vPos(e);vCtx.lineTo(x,y);vCtx.stroke();},{passive:false});
-    sigCv.addEventListener("touchend",()=>{vDrawing=false;});
-  },50);
-  sigClr.onclick=()=>{if(vCtx){vCtx.clearRect(0,0,sigCv.width,sigCv.height);sigHint.style.opacity="1";vDrawn=false;}};
-
-  // Хадгалах товч
-  const saveBtn=el("button",{className:"btn btn-p"},["✅ Баталгаажуулж хадгалах"]);
-  saveBtn.onclick=()=>{
-    if(!nameInp.value.trim()) return toast("Нэрийг бичнэ үү","err");
-    if(checked.size<confirmItems.length) return toast("Бүх зүйлийг тэмдэглэнэ үү","err");
-    if(!vDrawn) return toast("Гарын үсгээ зурна уу","err");
-    // Гарын үсэг авах
-    const _vc=document.createElement("canvas");
-    _vc.width=sigCv.width;_vc.height=sigCv.height;
-    const _vx=_vc.getContext("2d");
-    _vx.fillStyle="#fff";_vx.fillRect(0,0,_vc.width,_vc.height);
-    _vx.drawImage(sigCv,0,0);
-    const sigData=_vc.toDataURL("image/jpeg",0.85);
-    const log={
-      id: Date.now(),
-      name: nameInp.value.trim(),
-      org: orgInp.value.trim()||"—",
-      date: toDay(),
-      time: toNow(),
-      items: confirmItems.length,
-      checked: checked.size,
-      signature: sigData
-    };
-    const logs=getVisitorLogs();
-    logs.unshift(log);
-    if(logs.length>100) logs.splice(100);
-    saveVisitorLogs(logs);
-    // Sheets-д хадгалах (гарын үсэг хамт)
-    postToSheets({
-      action: "addVisitor",
-      name:    log.name,
-      org:     log.org,
-      date:    log.date,
-      time:    log.time,
-      checked: String(log.checked),
-      items:   String(log.items),
-      signature: log.signature||""
-    }).catch(()=>{}); // Offline бол алгасна
-    // Амжилтын хуудас
-    app.innerHTML="";
-    const pg=h("div",{className:"center-page",style:{background:"var(--gp)"}});
-    const cd=el("div",{className:"glass scaleIn",style:{maxWidth:"340px",width:"100%",padding:"36px 28px",textAlign:"center"}});
-    const circ=el("div",{className:"ok-circle"});
-    circ.innerHTML='<svg width="36" height="30" viewBox="0 0 36 30" fill="none"><polyline points="2,15 13,26 34,2" stroke="white" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/></svg>';
-    cd.appendChild(circ);
-    cd.appendChild(brand(22,false));
-    cd.appendChild(h("div",{style:{fontFamily:"'DM Serif Display',serif",fontSize:"18px",color:"var(--g)",margin:"16px 0 6px"}},["Амжилттай баталгаажлаа!"]));
-    cd.appendChild(h("div",{style:{color:"var(--mut)",fontSize:"13px",marginBottom:"8px"}},[log.name+" та ХАБЭА-н зааварчилгааг уншиж танилцлаа."]));
-    const infoDiv=el("div",{style:{background:"var(--gp)",borderRadius:"12px",padding:"12px",fontSize:"12px",color:"var(--mut)",marginBottom:"20px",textAlign:"left"}});
-    infoDiv.innerHTML="📅 "+log.date+" 🕐 "+log.time+"<br>🏢 "+log.org;
-    cd.appendChild(infoDiv);
-    cd.appendChild(el("button",{className:"btn btn-p",onclick:renderHome},["Нүүр хуудас"]));
-    pg.appendChild(cd);app.appendChild(pg);
-    toast("Хадгалагдлаа ✓");
-  };
-  sigCard.appendChild(saveBtn);
-  wrap.appendChild(sigCard);
-  page.appendChild(wrap);
-  app.appendChild(page);
+  render();
 }
-
 
 // ════════════════════════════════════════════════════════════
 // 🔐 PIN
