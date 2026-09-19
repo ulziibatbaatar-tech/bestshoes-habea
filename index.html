@@ -1282,23 +1282,26 @@ function renderHome(){
       });}catch(e){}
     }
   });
-  // 🏭 Зочдод өгөх зааварчилгаа товч
+  // 🏭 Зочдод өгөх зааварчилгаа товч (3 хэлээр)
   const visitorBtn=el("button",{style:{
-    padding:"14px",
+    padding:"12px 14px",
     background:"rgba(255,255,255,.08)",
     color:"rgba(255,255,255,.85)",
     border:"1px solid rgba(255,255,255,.25)",
     borderRadius:"12px",
-    fontSize:"14px",
-    fontWeight:"700",
     fontFamily:"'DM Sans',sans-serif",
     cursor:"pointer",
     width:"100%",
     display:"flex",
+    flexDirection:"column",
     alignItems:"center",
     justifyContent:"center",
-    gap:"8px"
-  }},["🏭  Зочдод өгөх зааварчилгаа"]);
+    gap:"3px",
+    lineHeight:"1.3"
+  }},[
+    h("div",{style:{fontSize:"14px",fontWeight:"700"}},["🏭  Зочдод өгөх зааварчилгаа"]),
+    h("div",{style:{fontSize:"11px",fontWeight:"500",color:"rgba(255,255,255,.6)"}},["访客须知 · Visitor Briefing"])
+  ]);
   visitorBtn.onclick=()=>renderVisitorGuide();
   // 📋 Зааварчилгааны бүртгэл товч
   const instrBtn=el("button",{style:{
